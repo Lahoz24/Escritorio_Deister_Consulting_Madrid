@@ -1,0 +1,9 @@
+<table name='alm_alpargatashb'>
+
+   <!-- COLUMNS -->
+   <column name='codigo'            type='serial'                    required='y' />
+   <column name='descri'            type='varchar'    size='255'                  />
+
+   <!-- INDEXES -->
+   <primary name='p_alm_alpargatasb' columns='codigo' />
+</table>

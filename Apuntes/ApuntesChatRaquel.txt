@@ -1,4 +1,4 @@
-Hola!, aqui va la fase 1
+---------------------------------------------------------------
 
 FASE 1
 Crear dos tablas (de estructura padre-hijo)
@@ -18,10 +18,14 @@ https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%2
 
 https://mydeister.com/servlet/jrep?code=wic_jrep_form_tabs&user=rdm&dbms=wic_form_2022&query=true
 
+---------------------------------------------------------------
+
 FASE 1.1
 Crear panel y agregar objetos.
 
-Fase 2
+---------------------------------------------------------------
+
+FASE 2
 Modificar tabla padre y tabla hijo para agregar los datos de control (user_created, date_created, user_updated, date_updated)  (estos datos de control están en todas o la gran mayoria de tablas del estandar para que veas como están definidos. en todos iguales)
     - Agregar a diccionarios, atributos y objetos
 
@@ -42,3 +46,9 @@ Agregar en cabecera y lineas los campos caberr (numerico) y linerr (numerico)   
 
 Agregar nuevos estados tanto en cabecera como en líneas.  Abierto, cerrado, anulado, validado, bloqueado.
 
+---------------------------------------------------------------
+
+FASE 3
+Crear un botón que al presiónar diga mediante menesaje de error un "Hola mundo"
+crear un botón al que le paseis dos argumentos, uno de ellos que sea un dato de la query principal y el otro uno que pidais por pantalla al accionar elbotón y mostrar concatenado el mensaje de Hola Mundo con el valor de los dos argumentos
+Crear un proceso que actualice el importe total de la cabecera con lo que haya en lineas. Llamado desde botón

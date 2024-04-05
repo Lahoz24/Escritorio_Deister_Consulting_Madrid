@@ -1,0 +1,8 @@
+<select >
+    <columns>
+        <rowid table='alm_alpargatasb'/>,
+        alm_alpargatasb.codigo,
+        alm_alpargatasb.descri
+    </columns>
+    <from table='alm_alpargatasb' />
+</select>
