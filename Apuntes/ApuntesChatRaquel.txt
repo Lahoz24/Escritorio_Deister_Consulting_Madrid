@@ -1,0 +1,44 @@
+Hola!, aqui va la fase 1
+
+FASE 1
+Crear dos tablas (de estructura padre-hijo)
+    - PADRE: cabid, codigo, Descripción, Fecha, importe total y un estado. 
+             cabid=> Serial
+             codigo => Char(4)
+             descri => Varchar(255)
+             fecha => date
+             imptot => decimal(17,2) 
+             estado => char(1)
+    - HIJO:  cabid, linid, codigo descripción, importe y un estado. 
+Crear diccionarios
+Crear atributos
+Crear objetos y relacionarlos
+
+https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%20Studio.2/Development%20Guide.10/Languages%20reference.16/XSQL%20Script.10/Packages.40
+
+https://mydeister.com/servlet/jrep?code=wic_jrep_form_tabs&user=rdm&dbms=wic_form_2022&query=true
+
+FASE 1.1
+Crear panel y agregar objetos.
+
+Fase 2
+Modificar tabla padre y tabla hijo para agregar los datos de control (user_created, date_created, user_updated, date_updated)  (estos datos de control están en todas o la gran mayoria de tablas del estandar para que veas como están definidos. en todos iguales)
+    - Agregar a diccionarios, atributos y objetos
+
+ 
+Modificar tabla padre
+    - Modificar nombre campo fecha por fecini (fecha de inicio) (tendrás que cambiar mas cosas que solo el nombre de columna en la tabla ;)  ) 
+    - Agregarle otra fecha fecfin (fecha fin)
+
+Modificar tabla hija para agregarle una fecha (Fecha). 
+
+
+crear tabla de bloqueos (tabla, objeto, diccionarios, atributos lo que necesites)
+    codigo (numerico) y descri. 
+
+Agregar en las tablas padre e hijo los campos import (decimal,17,2) y dtoimp(decimal, 17,2)
+
+Agregar en cabecera y lineas los campos caberr (numerico) y linerr (numerico)   respectivamente (caberr en padre y linerr en hijo1). 
+
+Agregar nuevos estados tanto en cabecera como en líneas.  Abierto, cerrado, anulado, validado, bloqueado.
+

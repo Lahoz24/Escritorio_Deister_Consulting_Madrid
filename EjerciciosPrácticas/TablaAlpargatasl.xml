@@ -1,0 +1,27 @@
+<table name='alm_alpargatasl'>
+
+   <!-- COLUMNS -->
+   <column name='linid'             type='serial'                    required='y' />
+   <column name='cabid'             type='integer'                   required='y' />
+   <column name='codigo'            type='char'       size='20'      required='y' />
+   <column name='descri'            type='varchar'    size='255'                  />
+   <column name='fecha'             type='date'                      required='y' />
+   <column name='import'            type='decimal'    size='17,2'    required='y' />
+   <column name='dtoimp'            type='decimal'    size='17,2'    required='y' />
+   <column name='imptot'            type='decimal'    size='17,2'    required='y' />
+   <column name='estado'            type='char'       size='1'       required='y' />
+   <column name='linerr'            type='integer'                   required='y' />
+
+   <!-- CONTROL DATA -->
+   <column name='user_created'  type='char'        size='20'               default='user'      required='y' />
+   <column name='date_created'  type='datetime'    size='year to second'   default='current'   required='y' />
+   <column name='user_updated'  type='char'        size='20'               default='user'      required='y' />
+   <column name='date_updated'  type='datetime'    size='year to second'   default='current'   required='y' />
+
+   <!-- PRIMARY KEY -->
+   <primary name='p_alm_alpargatasl' columns='linid' />
+
+   <!-- FOREIGN KEY -->
+   <foreign name='f_alm_alpargatasl' columns='cabid' references="alm_alpargatash" refcols="cabid"/>
+
+</table>

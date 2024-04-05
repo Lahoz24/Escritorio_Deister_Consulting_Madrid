@@ -1,0 +1,23 @@
+<table name='alm_alpargatash'>
+
+   <!-- COLUMNS -->
+   <column name='cabid'             type='serial'                    required='y' />
+   <column name='codigo'            type='char'       size='20'      required='y' />
+   <column name='descri'            type='varchar'    size='255'                  />
+   <column name='fecini'            type='date'                      required='y' />
+   <column name='fecfin'            type='date'                      required='y' />
+   <column name='import'            type='decimal'    size='17,2'    required='y' />
+   <column name='dtoimp'            type='decimal'    size='17,2'    required='y' />
+   <column name='imptot'            type='decimal'    size='17,2'    required='y' />
+   <column name='estado'            type='char'       size='1'       required='y' />
+   <column name='caberr'            type='integer'                   required='y' />
+      
+   <!-- CONTROL DATA -->
+   <column name='user_created'  type='char'        size='20'               default='user'      required='y' />
+   <column name='date_created'  type='datetime'    size='year to second'   default='current'   required='y' />
+   <column name='user_updated'  type='char'        size='20'               default='user'      required='y' />
+   <column name='date_updated'  type='datetime'    size='year to second'   default='current'   required='y' />
+
+   <!-- INDEXES -->
+   <primary name='p_alm_alpargatash' columns='cabid' />
+</table>

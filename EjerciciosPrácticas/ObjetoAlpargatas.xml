@@ -1,0 +1,20 @@
+<select >
+    <columns>
+        <rowid table='alm_alpargatash'/>,
+        alm_alpargatash.cabid,
+        alm_alpargatash.codigo,
+        alm_alpargatash.descri,
+        alm_alpargatash.fecini,
+        alm_alpargatash.fecfin,
+        alm_alpargatash.import,
+        alm_alpargatash.dtoimp,
+        alm_alpargatash.imptot,
+        alm_alpargatash.estado,
+        alm_alpargatash.caberr,
+        alm_alpargatash.user_created,
+        alm_alpargatash.date_created,
+        alm_alpargatash.user_updated,
+        alm_alpargatash.date_updated
+    </columns>
+    <from table='alm_alpargatash' />
+</select>
