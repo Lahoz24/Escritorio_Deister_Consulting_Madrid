@@ -1,0 +1,5 @@
+<call name='alm_import_sum'>
+    <args>
+        <arg>${cabid}</arg>
+    </args>
+</call>

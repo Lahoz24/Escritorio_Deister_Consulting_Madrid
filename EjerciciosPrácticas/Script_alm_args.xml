@@ -1,0 +1,13 @@
+<xsql-script name='alm_args'>
+    <args>
+        <arg name='descri' type='varchar'></arg>
+        <arg name='imptot' type='decimal'></arg>
+    </args>
+    <body>
+        <exception>
+            Hola Mundo 
+            Descripción: <descri/>
+            Importe total: <imptot/>
+        </exception>
+    </body>
+</xsql-script>

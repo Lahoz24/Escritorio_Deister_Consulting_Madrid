@@ -1,0 +1,17 @@
+<xsql-script name='alm_import_sum'>
+    <args>
+        <arg name='p_cabid' type='integer'/>
+    </args>
+    <body>
+            <select prefix='m_'>
+                <columns>SUM(alm_alpargatasl.imptot) <alias name='total'/></columns>
+                <from table='alm_alpargatasl'/>
+                <where>alm_alpargatasl.cabid=<p_cabid/></where>
+            </select>
+            
+            <update table='alm_alpargatash'>
+                <column name='import'><m_total/></column>
+                <where>alm_alpargatash.cabid=<p_cabid/></where>
+            </update>
+    </body>
+</xsql-script>

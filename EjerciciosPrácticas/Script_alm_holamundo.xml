@@ -1,0 +1,7 @@
+<xsql-script name='alm_holamundo'>
+    <body>
+        <exception>
+            Hola Mundo
+        </exception>
+    </body>
+</xsql-script>
