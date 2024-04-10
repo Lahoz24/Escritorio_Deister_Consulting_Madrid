@@ -1,0 +1,44 @@
+<xsql-script name='alm_update_imp'>
+    <args>
+        <arg name='p_cabid' like='alm_alpargatasl.cabid'/>
+    </args>
+    
+    <body>
+        
+        <select prefix='m_'>
+            <columns>sum (NVL(alm_alpargatasl.imptot,0)) <alias name='sum_imptot'/></columns>
+            <from table='alm_alpargatasl'/>
+            <where>alm_alpargatasl.cabid=<p_cabid/></where>
+        </select>
+        
+        <select prefix='m_'>
+            <columns> NVL(alm_alpargatash.dtoimp,0) <alias name='dtoimp'/></columns>
+            <from table='alm_alpargatash'/>
+            <where>alm_alpargatash.cabid=<p_cabid/></where>
+        </select>
+        
+        <update table='alm_alpargatash'>
+            <column name='import'><m_sum_imptot/></column>
+            <where>alm_alpargatash.cabid = <p_cabid/></where> 
+        </update>
+        
+        <set name='m_imptoth'>
+            <sub>
+                <m_sum_imptot/>
+                <mul>
+                    <m_sum_imptot/>
+                    <div>
+                        <m_dtoimp/>
+                        <number>100</number>
+                    </div>
+                </mul>
+            </sub>
+         </set>
+         
+        <update table='alm_alpargatash'>
+            <column name='imptot'><m_imptoth/></column>
+            <where>alm_alpargatash.cabid = <p_cabid/></where> 
+        </update>
+        
+    </body>
+</xsql-script>

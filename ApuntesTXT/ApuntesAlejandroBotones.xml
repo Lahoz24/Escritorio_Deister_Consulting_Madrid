@@ -1,0 +1,79 @@
+<!--Hola Mundo: En Lógica de negocios - Server - Server XSQL Scripts: Introduces el código que será el nombre del script y el script:--> 
+
+<xsql-script name='ads_holamundo_script'>
+    <body>
+        <exception>
+            Hola Mundo!!
+        </exception>
+    </body>
+</xsql-script>
+
+<!--En Objects - Form - Acciones:Introduces el código de acción, la etiqueta y la sentencia de ejecución llamando al script creado: --> 
+
+<call name='ads_holamundo_script'/>
+
+<!-- Luego en Botones metes el id de acción de tu acción-->
+
+<!--crear un botón al que le paseis dos argumentos, uno de ellos que sea un dato de la query principal y el otro uno que pidais por pantalla al accionar elbotón y mostrar concatenado 
+    el mensaje de Hola Mundo con el valor de los dos argumentos-->
+
+<!--En Lógica de negocios - Server - Server XSQL Scripts: Introduces el código que será el nombre del script y el script:--> 
+
+<xsql-script name='ads_argumentos'>
+    <args>
+        <arg name='descri' type='varchar'></arg>
+        <arg name='estado' type='char'></arg>
+    </args>
+    <body>
+        <exception>
+            Hola Mundo!! 
+            Descripción: <descri/>
+            Estado: <estado/>
+        </exception>
+    </body>
+</xsql-script>
+
+<!--En Objects - Form - Acciones:Introduces el código de acción, la etiqueta y la sentencia de ejecución llamando al script creado, luego introduces los argumentos,
+     el primero una interrogación porque quieres que te aparezca un campo input para que introduzcas el campo que necesites el cual gestionarás en fields donde introduces
+     la posición 0, tabla, columna descri, tipo en este caso char, tamaño 10 por ejemplo y yo he puesto checkeados los campos de editable y nulable y luego el otro argumento
+     que sería el estado que lo pones directamente: --> 
+
+      <call name='ads_argumentos'>
+        <args>
+            <arg>?</arg>
+            <arg>${estado}</arg>
+        </args>
+    </call>
+
+<!--Crear un proceso que actualice el importe total de la cabecera con lo que haya en lineas. Llamado desde botón -->
+
+<!--En Lógica de negocios - Server - Server XSQL Scripts: Introduces el código que será el nombre del script y el script:--> 
+
+<xsql-script name='ads_sumatorio_importe'>
+    <args>
+        <arg name='p_cabid' type='integer'></arg>
+    </args>
+    <body>
+        <set name='caber_null'><null/></set>
+            <select prefix='m_'>
+                <columns>SUM(ads_videojuegosl.imptot) <alias name='total'/></columns>
+                <from table='ads_videojuegosl'/>
+                <where>ads_videojuegosl.cabid=<p_cabid/></where>
+            </select>
+            
+            <update table='ads_videojuegosh'>
+                <column name='import'><m_total/></column>
+                <column name='estado'>V</column>
+                <column name='caberr'><caber_null/></column>
+                <where>ads_videojuegosh.cabid=<p_cabid/></where>
+            </update>
+    </body>
+</xsql-script>
+
+<!--En Objects - Form - Acciones:Introduces el código de acción, la etiqueta y la sentencia de ejecución llamando al script creado: --> 
+
+<call name='ads_sumatorio_importe'>
+    <args>
+        <arg>${cabid}</arg>
+    </args>
+</call>

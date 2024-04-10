@@ -1,0 +1,7 @@
+<!-- UPDATE AFTER -->
+
+<call name='alm_update_imp'>
+    <args>
+        <arg>${cabid}</arg>
+    </args>
+</call>

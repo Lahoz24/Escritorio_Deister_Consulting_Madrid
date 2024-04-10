@@ -79,6 +79,11 @@ Validar que al generar la linea hija la fecha introducida esté entre la fecha d
 Poner bloqueo en lineas si se ACTUALIZA la  fecha y está fuera dle rango de las fechas dela cabecera.      Se actualizará el estao de la linea a bloqueado.
 
 --Este bloqueo no permite realizar nada sobre la linea ni que tenga que ver con ella hasta que la fecha esté correcta o se elimine la linea. 
-
     
 Si alguna linea está en bloqueado la cabecera deberá estar bloqueada. El bloqueo puesto en las líneas deberá actualizarse en la cabecera.
+
+OPERADORES SCRIPTS 
+https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%20Studio.2/Development%20Guide.10/Languages%20reference.16/XSQL%20Script.10/Operators.16/Arithmetic.2.xml
+
+FUNCIONES MATH
+https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%20Studio.2/Development%20Guide.10/Languages%20reference.16/XSQL%20Script.10/Packages.40/math

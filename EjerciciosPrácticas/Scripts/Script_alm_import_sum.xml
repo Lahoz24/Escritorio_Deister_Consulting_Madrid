@@ -3,6 +3,8 @@
         <arg name='p_cabid' type='integer'/>
     </args>
     <body>
+        <set name='caberr_null'><null/></set>
+        
             <select prefix='m_'>
                 <columns>SUM(alm_alpargatasl.imptot) <alias name='total'/></columns>
                 <from table='alm_alpargatasl'/>
@@ -11,6 +13,8 @@
             
             <update table='alm_alpargatash'>
                 <column name='import'><m_total/></column>
+                <column name='estado'>V</column>
+                <column name='caberr'><caberr_null/></column>
                 <where>alm_alpargatash.cabid=<p_cabid/></where>
             </update>
     </body>
