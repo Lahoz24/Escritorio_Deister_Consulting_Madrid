@@ -1,0 +1,144 @@
+procedure alm
+
+<procedure name="alm_update_imp">
+    <args>
+        <arg name='p_cabid' like='alm_alpargatasl.cabid'/>
+    </args>
+    <define>
+        <variable name='sum_imp' type='decimal'/>
+        <variable name='dtoimp' type='decimal'/>
+        <variable name='import_upd' type='decimal'/>
+
+    </define>
+    
+    <body>
+        
+        <select>
+            <columns>sum(alm_alpargatasl.imptot)</columns>
+            <into>sum_imp</into>
+            FROM alm_alpargatasl
+            WHERE alm_alpargatasl.cabid = p_cabid
+        </select>
+        
+        <select>
+            <columns>alm_alpargatash.dtoimp</columns>
+            <into>dtoimp</into>
+            FROM alm_alpargatash
+            WHERE alm_alpargatash.cabid = p_cabid
+        </select>
+        
+        <update table='alm_alpargatash'>
+            <column name='import'>sum_imp</column>
+            <where>alm_alpargatash.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+        
+        <set name='import_upd'>sum_imp - (sum_imp * (dtoimp / 100))</set>  
+        
+        <update table='alm_alpargatash'>
+            <column name='imptot'>import_upd</column>
+            <where>alm_alpargatash.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+    </body>
+</procedure>
+
+trigger en la hija delete
+
+<xsql-trigger
+    name='alm_alpargatasl_del'
+    table='alm_alpargatasl'
+    event='delete'
+>
+    <foreach-row>
+        
+        <execute-procedure name='alm_bloq_imptot'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+        
+        <execute-procedure name='alm_update_imp'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+        
+    </foreach-row>
+</xsql-trigger>
+
+error al delete en la tabla hija
+
+Ha ocurrido un error...
+Cannot insert a null into column (alm_alpargatash.imptot).
+
+
+procedure ads (álex) funciona
+
+<procedure name="ads_imp_act">
+    <args>
+        <arg name='p_cabid' like='ads_videojuegosl.cabid'/>
+    </args>
+    <define>
+        <variable name='suma_imptot' type='decimal'/>
+        <variable name='dtoimp' type='decimal'/>
+        <variable name='imptoth' type='decimal'/>
+    </define>
+    
+    <body>
+        
+        <select>
+            <columns>sum(ads_videojuegosl.imptot)</columns>
+            <into>suma_imptot</into>
+            FROM ads_videojuegosl
+            WHERE ads_videojuegosl.cabid = p_cabid
+        </select>
+        
+        <!--Como no podemos llamar directamente a una columna, tendremos que guardarla en una variable -->
+        <select>
+            <columns>ads_videojuegosh.dtoimp</columns>
+            <into>dtoimp</into>
+            FROM ads_videojuegosh
+            WHERE ads_videojuegosh.cabid = p_cabid
+        </select>
+        
+        <update table='ads_videojuegosh'>
+            <column name='import'>suma_imptot</column>
+            <where>ads_videojuegosh.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+        
+        <set name='imptoth'>suma_imptot - (suma_imptot * (dtoimp / 100))</set>
+        <update table='ads_videojuegosh'>
+            <column name='imptot'>imptoth</column>
+            <where>ads_videojuegosh.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+    </body>
+</procedure>
+
+
+trigger ads (álex) funciona (está igual que el mío)
+
+<xsql-trigger
+    name='ads_videojuegosl_del'
+    table='ads_videojuegosl'
+    event='delete'
+>
+    <foreach-row>
+        <execute-procedure name='ads_bloqueo_imptot'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+            <execute-procedure name='ads_imp_act'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+    </foreach-row>
+</xsql-trigger>

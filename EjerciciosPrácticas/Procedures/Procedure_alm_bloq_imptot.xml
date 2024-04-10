@@ -1,0 +1,39 @@
+<procedure name="alm_bloq_imptot">
+    <args>
+        <arg name='p_cabid' like='alm_alpargatasl.cabid'/>         <!-- El like es como poner el type de esa columna -->
+    </args>
+    <define>
+        <variable name='m_sumimp' type='decimal'/>
+        <variable name='m_imptot' type='decimal'/>
+    </define>
+    
+    <body>
+        
+        <select>
+            <columns>sum(alm_alpargatasl.imptot)</columns>
+            <into>m_sumimp</into>
+            FROM alm_alpargatasl
+            WHERE alm_alpargatasl.cabid = p_cabid
+        </select>
+        
+        <!--Como no podemos llamar directamente a una columna, tendremos que guardarla en una variable -->
+        <select>
+            <columns>alm_alpargatash.imptot</columns>
+            <into>m_imptot</into>
+            FROM alm_alpargatash
+            WHERE alm_alpargatash.cabid = p_cabid
+        </select>
+        
+        <if>
+            <expr>m_sumimp != m_imptot</expr>
+            <then>
+                <update table='alm_alpargatash'>
+                    <column name='estado'>'B'</column>
+                    <column name='caberr'>301</column> <!--El codigo que hemos creado en la tabla bloqueos -->
+                    <where>alm_alpargatash.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+                </update>
+            </then>
+		</if>
+		
+    </body>
+</procedure>

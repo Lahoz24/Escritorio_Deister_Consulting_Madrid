@@ -1,0 +1,15 @@
+<xsql-trigger
+    name='alm_alpargatasl_ins'
+    table='alm_alpargatasl'
+    event='insert'
+>
+    <foreach-row>
+        <execute-procedure name='alm_bloq_imptot'>
+            <in>
+                <param>
+                    <nxt>cabid</nxt>
+                </param>
+            </in>
+        </execute-procedure>
+    </foreach-row>
+</xsql-trigger>

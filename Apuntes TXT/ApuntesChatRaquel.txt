@@ -52,3 +52,33 @@ FASE 3
 Crear un botón que al presiónar diga mediante menesaje de error un "Hola mundo"
 crear un botón al que le paseis dos argumentos, uno de ellos que sea un dato de la query principal y el otro uno que pidais por pantalla al accionar elbotón y mostrar concatenado el mensaje de Hola Mundo con el valor de los dos argumentos
 Crear un proceso que actualice el importe total de la cabecera con lo que haya en lineas. Llamado desde botón
+
+---------------------------------------------------------------
+
+FASE 4
+
+Poner bloqueo en cabecera si el importe total de las lineas no coincide con el de cabecera. El bloqueo solo permitirá ejecutar el botón de actualizar importes. 
+    Actualizará el estado a bloqueado. (BLOQUEO POR IMPORTE)
+
+
+Actualizar imptot de linea en funcion del importe y dto. con JS.  
+Proceso que actualice el importe e importe total  de cabecera cuando se modifique alguno de las líneas
+    - DEL por trigger
+    - UPD/INT TXManager
+
+Agregar Campo texto varchar(255) cabecera para informar de los importes anteriores modificados.
+Funcion Javascript en el hijo que cada vez que se guarde una modificación del el importe y/o descuento (por defecto el importe total), se actualice el campo texto de la cabecera con la fecha actual, el importe y descuento anterior.
+
+Validar que al generar la linea hija la fecha introducida esté entre la fecha de inicio y fin de la cabecera. 
+
+    - Primero por JavaScript. 
+    - Segundo por TxManager
+    - Tercero por trigger
+
+
+Poner bloqueo en lineas si se ACTUALIZA la  fecha y está fuera dle rango de las fechas dela cabecera.      Se actualizará el estao de la linea a bloqueado.
+
+--Este bloqueo no permite realizar nada sobre la linea ni que tenga que ver con ella hasta que la fecha esté correcta o se elimine la linea. 
+
+    
+Si alguna linea está en bloqueado la cabecera deberá estar bloqueada. El bloqueo puesto en las líneas deberá actualizarse en la cabecera.

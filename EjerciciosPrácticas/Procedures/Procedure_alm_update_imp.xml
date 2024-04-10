@@ -1,0 +1,40 @@
+<procedure name="alm_update_imp">
+    <args>
+        <arg name='p_cabid' like='alm_alpargatasl.cabid'/>
+    </args>
+    <define>
+        <variable name='m_sumimp' type='decimal'/>
+        <variable name='m_dtoimp' type='decimal'/>
+        <variable name='m_impupd' type='decimal'/>
+
+    </define>
+    
+    <body>
+        
+        <select>
+            <columns>sum(alm_alpargatasl.imptot)</columns>
+            <into>m_sumimp</into>
+            FROM alm_alpargatasl
+            WHERE alm_alpargatasl.cabid = p_cabid
+        </select>
+        
+        <select>
+            <columns>alm_alpargatash.dtoimp</columns>
+            <into>m_dtoimp</into>
+            FROM alm_alpargatash
+            WHERE alm_alpargatash.cabid = p_cabid
+        </select>
+        
+        <update table='alm_alpargatash'>
+            <column name='import'>m_sumimp</column>
+            <where>alm_alpargatash.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+        
+        <set name='m_impupd'>m_sumimp - (m_sumimp * (m_dtoimp / 100))</set>  
+        
+        <update table='alm_alpargatash'>
+            <column name='imptot'>m_impupd</column>
+            <where>alm_alpargatash.cabid = p_cabid</where> <!--Siempre que se haga un update se tiene que poner un where -->
+        </update>
+    </body>
+</procedure>

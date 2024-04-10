@@ -1,0 +1,25 @@
+<xsql-trigger
+    name='alm_alpargatasl_del'
+    table='alm_alpargatasl'
+    event='delete'
+>
+    <foreach-row>
+        
+        <execute-procedure name='alm_bloq_imptot'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+        
+        <execute-procedure name='alm_update_imp'>
+            <in>
+                <param>
+                    <prv>cabid</prv>
+                </param>
+            </in>
+        </execute-procedure>
+        
+    </foreach-row>
+</xsql-trigger>
