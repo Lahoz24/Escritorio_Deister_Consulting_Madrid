@@ -1,0 +1,44 @@
+<call>
+   <args>
+       <arg>${movie_age}</arg>
+   </args>
+<![CDATA[
+   <xsql-script>
+       <args>
+           <arg name='p_fecha' type='date' />
+       </args>
+       <body>
+       
+            <!--<debug mailto='jorge_martin'/>-->
+            
+            <set name='m_fecha' type='date'><date.mdy><number>1</number><number>1</number><number>2018</number></date.mdy></set> 
+            
+          	<execute-procedure name='get_fecha'>
+            		<in>
+                        <m_fecha />
+            		</in>
+            		<out>
+            			<var name='r_fecha' type='date' />
+            		</out>
+            </execute-procedure>    	 
+            
+
+             <if>             
+                <expr>          
+                    <ne>           
+                        <p_fecha />
+                        <r_fecha />
+                    </ne>
+                </expr>
+                <then>          
+                    <set name='m_retorno'><string>NO SON IGUALES </string></set>
+                </then>
+                <else>          
+                    <set name='m_retorno'><string>SON IGUALES </string></set>
+                </else>    
+            </if>  
+            <return><m_retorno/></return>
+       </body>
+   </xsql-script>
+]]>
+</call>

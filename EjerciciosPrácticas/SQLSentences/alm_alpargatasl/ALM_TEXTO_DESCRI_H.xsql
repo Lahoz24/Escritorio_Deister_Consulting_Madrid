@@ -1,0 +1,58 @@
+<call>
+   <args>
+       <arg>?</arg>
+   </args>
+   
+<![CDATA[
+   <xsql-script>
+       <args>
+           <arg name='p_linid' type='integer' />
+       </args>
+       <body>
+            <select prefix='m_'>
+            
+                <columns>import,dtoimp,cabid</columns>
+                <from table='alm_alpargatasl'/>
+                <where> linid= <p_linid/> </where>
+                
+            </select>
+            
+            <set name='textoImp'>
+                <string> El importe anterior era: <m_import/>, el descuento anterior era:  <m_dtoimp/> y la fecha de la última modificación ha sido: <date.today/> </string>
+            </set>
+                
+            <update table='alm_alpargatash'>
+            
+                <column name='texto'>
+                    <textoImp/>
+                </column>
+                <where>cabid=<m_cabid/></where>
+                
+            </update>
+       </body>
+   </xsql-script>
+]]>
+
+</call>
+
+    
+    
+/*CONCAT(<m_import/>, ' ', <m_dtoimp/> , ' ', DATE_FORMAT(NOW(), '%d/%m/%Y'))*/ 
+
+
+/*
+    <set name='q1'>
+        <array />
+    </set>
+    <array.add name='q1'>
+        <string><m_import/></string>
+        <string><m_dtoimp/></string>
+    </array.add>
+    
+    <update table='alm_alpargatash'>
+    
+        <column name='texto'><q1/></column>
+        <where>cabid=<m_cabid/></where>
+        
+    </update>
+*/
