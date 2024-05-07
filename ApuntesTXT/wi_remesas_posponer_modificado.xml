@@ -1,0 +1,429 @@
+<!-- ====================================================================================================== -->
+<!--                                                                                                        -->
+<!--    XSQL: wi_remesas_posponer                                                                           -->
+<!--                                                                                                        -->
+<!--    Pospone los efectos a fechas de día de pago posteriores a las de su remesa actual haciendo sobre    -->
+<!--    ellos las siguientes acciones:                                                                      -->
+<!--                                                                                                        -->
+<!--    * Busca a ver si existe una remesa por la nueva fecha de pago propuesta y si no existe la crea      -->
+<!--    * Desasocia el efecto de su remesa actual.                                                          -->
+<!--    * Se asocian los efectos a la nueva remesa                                                          -->
+<!--    * Valida las remesas origen y destino                                                               -->
+<!--                                                                                                        -->
+<!-- ====================================================================================================== -->
+<xsql-script name='wi_remesas_posponer'>
+    <args>
+        <arg name='p_remesa'   type='integer'  info='wi_remesa.cabid. Identificador de la remesa'                       /> <!-- Podríamos obtenerlo por el sql table pero por solidez y homogeneidad con otros scripts lo solicito como argumento -->
+        <arg name='p_diapag'   type='date'     info='wi_efectos.diapag. Dia de pago al que queremos cambiar el efecto'  /> 
+        <arg name='p_histip'   type='string'                                                                            /> <!-- Tipo de acción categorizada -->
+        <arg name='p_motivo'   type='string'   info='Motivo de la acción'                                               />
+    </args>
+    <body>  
+    
+        <!-- =================================== -->
+        <!-- Seteo inicial de variables (inicio) -->
+        <!-- =================================== -->
+        <set name='p_motivo'><string.trim2null><p_motivo/></string.trim2null></set>
+        <set name='m_user'><system.user.getCode /></set>
+        <set name='m_curr'><date.current /></set>           
+        <!-- =================================== -->
+        <!-- Seteo inicial de variables    (fin) -->
+        <!-- =================================== -->    
+
+        <!-- ====================================================== -->
+        <!-- Alojado en histórico de acciones de la remesa (inicio) -->
+        <!-- ====================================================== -->
+        <set name='wi_remesas_hisacc_seqno'>
+            <execute-function name='wi_remesas_hisacc_ins'>
+                <p_remesa/>
+                <string>POSPONER</string> 
+                <string>wi_remesas</string>
+                <p_histip/>
+				
+                <p_motivo/>
+                <m_user/>
+                <m_curr/>
+            </execute-function>
+        </set>
+        <!-- ====================================================== -->
+        <!-- Alojado en histórico de acciones de la remesa    (fin) -->
+        <!-- ====================================================== -->     
+
+        <!-- ============================================================= -->
+        <!-- Vtable de chequeados.                                         --> 
+        <!-- ============================================================= -->
+        <set name='v_remesas_posponer'>
+            <http.request.sqltable.getSelected code='EFECS_ASOCIADOS' />
+        </set>
+    
+        <if>
+            <expr>
+                <or>
+                    <isnull><v_remesas_posponer /></isnull>
+                    <eq><vtable.size name='v_remesas_posponer'/><number>0</number></eq>
+                </or>
+            </expr>
+            <then>
+                <exception><string>Ningún efecto seleccionado.</string></exception>
+            </then>
+        </if>
+        
+        <!-- Recogemos valores necesarios de la remesa origen -->
+        <select prefix='wi_remesas_ori_'>
+            <columns>
+                wi_remesas.tipdoc,
+                wi_remesas.codemp,
+                wi_remesas.codcen,
+                wi_remesas.coderp,
+                wi_remesasd.cabid <alias name='remesasd_id'/>,
+				wi_remesas.divisa    <!-- 05/2023 deister_rdm: Las remesas se dividirán por divisa -->
+            </columns>
+            <from table='wi_remesas'>
+                <join type='left' table='wi_remesasd'>
+                    <on>wi_remesas.tipdoc = wi_remesasd.codigo</on>
+                </join>          
+            </from>
+            <where>
+                wi_remesas.cabid = <p_remesa/>
+            </where>
+        </select>   
+
+        <!-- =================================================================== -->
+        <!-- Comprobamos que el día de pago sea válido según el maestro.         -->
+        <!-- =================================================================== -->
+        <set name='m_dia'><date.day><p_diapag/></date.day></set>
+        <set name='m_mes'><date.month><p_diapag/></date.month></set>
+        <set name='m_encontrado'><number>0</number></set>
+
+        <!-- =========================================================== -->
+        <!-- No se puede seleccionar un festivo.                         -->
+        <!-- =========================================================== -->
+        <if>
+            <expr>
+                <gt>
+                    <select>
+                        <columns>
+                            COUNT(*)
+                        </columns>
+                        <from table='wi_remesas_calendario'>
+                            <join table='wi_remesas_calendario_tipdoc'>
+                                <on>wi_remesas_calendario.cabid = wi_remesas_calendario_tipdoc.cabid</on>
+                            </join>
+                        </from>
+                        <where>
+                            wi_remesas_calendario.fecfes = <p_diapag/> AND
+                            wi_remesas_calendario_tipdoc.tipdoc = <wi_remesas_ori_tipdoc/>
+                        </where>
+                    </select><number>0</number>
+                </gt>
+            </expr>
+            <then>
+                <exception>No se puede seleccionar un día marcado como fecha prevista en el calendario de pagos.</exception>
+            </then>
+        </if>
+
+        <!-- =================================================================== -->
+        <!-- Vemos si la fecha está en el calendario de pago.                    -->
+        <!-- =================================================================== -->
+        <select first='1' prefix='m_'>
+            <columns>
+                wi_remesas_calendario.fecrem,
+                wi_remesas_calendario.fecfes
+            </columns>
+            <from table='wi_remesas_calendario'>
+                <join table='wi_remesas_calendario_tipdoc'>
+                    <on>wi_remesas_calendario.cabid = wi_remesas_calendario_tipdoc.cabid</on>
+                </join>
+            </from>
+            <where>
+                wi_remesas_calendario.fecrem = <p_diapag/> AND
+                wi_remesas_calendario_tipdoc.tipdoc = <wi_remesas_ori_tipdoc/>
+            </where>
+        </select>
+
+        <set name='p_diapag_aux'><p_diapag/></set>
+        <if>
+            <expr>
+                <and>
+                    <isnotnull><m_fecrem/></isnotnull>
+                    <eq><m_fecrem/><p_diapag/></eq>
+                </and>
+            </expr>
+            <then>
+                <set name='m_encontrado'><number>1</number></set>
+                <set name='p_diapag_aux'><m_fecfes/></set>
+            </then>
+        </if>
+
+        <if><expr><eq><m_encontrado/><number>0</number></eq></expr>
+            <then>
+                <foreach>
+                    <select prefix='v_'>
+                        <columns>
+                            wi_remesasd_fecp.diapag
+                        </columns>
+                        <from table='wi_remesasd_fecp'/>
+                        <where>
+                            wi_remesasd_fecp.cabid = <wi_remesas_ori_remesasd_id /> AND
+        
+                            (NOT EXISTS(SELECT wi_remesasd_fecp_empcen.rowid
+                                         FROM wi_remesasd_fecp_empcen
+                                        WHERE wi_remesasd_fecp.linid = wi_remesasd_fecp_empcen.linid)
+                            OR
+                            EXISTS(SELECT wi_remesasd_fecp_empcen.rowid
+                                     FROM wi_remesasd_fecp_empcen
+                                    WHERE wi_remesasd_fecp.linid = wi_remesasd_fecp_empcen.linid
+                                      AND wi_remesasd_fecp_empcen.codemp = <wi_remesas_ori_codemp />
+                                      AND wi_remesasd_fecp_empcen.codcen = <wi_remesas_ori_codcen />
+                                      AND <today/> BETWEEN wi_remesasd_fecp_empcen.fecini AND wi_remesasd_fecp_empcen.fecfin))
+                        </where>
+                    </select>
+                    <do>
+                        <if>
+                            <expr>
+                                <and>
+                                    <eq><m_mes/><number>2</number></eq>
+                                    <or>
+                                        <eq><v_diapag/><number>30</number></eq>
+                                        <eq><v_diapag/><number>31</number></eq>
+                                    </or>
+                                </and>
+                            </expr>
+                            <then>
+                                <set name='v_diapag'><number>28</number></set>
+                            </then>
+                        </if>
+
+                        <if><expr><eq><m_dia/><v_diapag/></eq></expr>
+                            <then>
+                                <set name='m_encontrado'><number>1</number></set>
+                            </then>
+                        </if>
+                    </do>
+                </foreach>
+            </then>
+        </if>
+
+        <if><expr><eq><m_encontrado/><number>0</number></eq></expr>
+            <then>
+                <exception><string>Día de pago no válido para el tipo de remesa. Revisar maestro de tipos de remesa.</string></exception>
+            </then>
+        </if>
+
+        <!-- ================================================================= -->
+        <!-- Resolvemos la fecha de gestión                           (inicio) -->
+        <!-- ================================================================= -->
+        
+        <!-- ================================================================= -->
+        <!-- En caso de remesa_id=5 (HHMM) tenemos que pasar explícitamente    -->
+        <!-- el tipo de remesa, enpresa y centro ya que en ningún caso tenemos -->
+        <!-- días de pago que admitan todos los centros, en cuyo caso se puede -->
+        <!-- pasar los campos como nulo.                                       -->
+        <!-- ================================================================= -->
+        <!--<if><expr><eq><wi_remesas_ori_remesasd_id /><number>5</number></eq></expr>
+            <then>-->
+                <set name='m_fecges'>
+                    <execute-function name='wi_reglas_remesas_fec' >
+                        <wi_remesas_ori_remesasd_id />
+                        <wi_remesas_ori_tipdoc/>
+                        <wi_remesas_ori_codemp/>
+                        <wi_remesas_ori_codcen/>
+                        <string>fecges</string>
+                        <p_diapag_aux/>
+                    </execute-function>
+                </set>
+            <!--</then>
+            <else>
+                <set name='m_fecges'>
+                    <execute-function name='wi_reglas_remesas_fec' >
+                        <wi_remesas_ori_remesasd_id />
+                        <null/>
+                        <null/>
+                        <null/>
+                        <string>fecges</string>
+                        <p_diapag/>
+                    </execute-function>
+                </set>
+            </else>
+        </if>-->
+        <!-- ================================================================= -->
+        <!-- Resolvemos la fecha de gestión                              (fin) -->
+        <!-- ================================================================= -->          
+
+        <!-- ================================================================= -->
+        <!-- Discriminar los efectos seleccionados por clasificación.          -->
+        <!-- ================================================================= -->
+        <foreach>
+            <in prefix='m_'>
+                <vtable.group columns='clasif_solo'>
+                    <v_remesas_posponer />
+                </vtable.group>
+            </in>
+            <do>
+                <!-- ================================================================= -->
+                <!-- Creación/Obtención de la remesa por el nuevo dia de pago (inicio) -->
+                <!-- ================================================================= -->                          
+                <call name='wi_create_get_remesa' into='wi_remesas_des_cabid,m_remesa_insertada'>
+                     <wi_remesas_ori_tipdoc/>
+                     <m_clasif_solo />
+                     <wi_remesas_ori_codemp/>
+                     <wi_remesas_ori_codcen/>
+                     <wi_remesas_ori_coderp/>
+                     <p_diapag/>
+                     <m_fecges/>
+					 <m_moneda/>		 <!-- 05/2023 deister_rdm: Las remesas se dividirán por divisa -->
+                </call> 
+                <!-- ================================================================= -->
+                <!-- Creación/Obtención de la remesa por el nuevo dia de pago    (fin) -->
+                <!-- ================================================================= -->          
+
+                <if>
+                    <!-- Si finalmente tenemos remesa a la que asociarnos lo hacemos -->
+                    <expr>
+                        <isnotnull><wi_remesas_des_cabid/></isnotnull>
+                    </expr>
+                    <then>
+            
+                        <!-- Desasociamos todos los efectos -->
+                        <call name='wi_remesas_add_efecs'>
+                            <number>-1</number>   <!-- Número de remesa. Pasamos -1 orque vamos a sacar los efectos de lsu remesa -->
+                            <string/>             <!-- Tipo de acción categorizada, solo para acciones manuales desde pantalla -->
+                            <string/>             <!-- Motivo, solo para acciones manuales desde pantalla -->
+                            <string>N</string>    <!-- Tipo de asociación a remesa, N No asociado, M Asociado a remesa manualmente, R Asociado a remesa por regla de asociación automática -->
+                            <string>V</string>    <!-- Tipo de resulset, V vtable (se usará el argumento p_v_add_efecs) o S sqltable (se usará el argumento p_mnemot) -->
+                            <string/>             <!-- Mnemoténico de la sqltable en caso de asorem igual a M ya que podemos asociar desde distintas SQL Tables -->
+                            
+                            <!-- Vtable con los efectos a asociar a qué remesas. Solo para argumento asorem igual a R, para el resto esta SQL Table se obtiene por sqltable.getSelected -->
+                            <vtable.filter name='v_remesas_posponer'>
+                                <column name='clasif_solo' regexp='#m_clasif_solo' />
+                            </vtable.filter> 
+                        </call>         
+            
+                        <!-- =============================================================================== -->
+                        <!-- Recorremos los efectos comprobar su fecha de vencimiento contra la nueva remesa -->
+                        <!-- =============================================================================== -->
+                        <foreach>
+                            <in prefix='v_remesas_posponer_'>
+                                <vtable.filter name='v_remesas_posponer'>
+                                    <column name='clasif_solo' regexp='#m_clasif_solo' />
+                                </vtable.filter> 
+                            </in>
+                            <do>
+                                <!-- Recogemos datos de cada efecto -->
+                                <select prefix='wi_efectos_'>
+                                    <columns>
+                                        wi_efectos.tipefe,
+                                        wi_efectos.codemp,
+                                        wi_efectos.codcen,
+                                        wi_efectos.fecven                               
+                                    </columns>
+                                    <from table='wi_efectos'/>
+                                    <where>
+                                        wi_efectos.identi = <v_remesas_posponer_ideefe/>
+                                    </where>
+                                </select>                   
+
+                                <comment>
+                                <set name='m_diaven' type='date'>
+                                    <!-- Devuelve el día de pago o el último día de fecha de vencimiento según argumento -->
+                                    <execute-function name='wi_reglas_remesas_fec'>
+                                        <wi_remesas_ori_remesasd_id/>
+                                        <wi_efectos_tipefe/>
+                                        <wi_efectos_codemp/>
+                                        <wi_efectos_codcen/>
+                                        <string>diaven</string>
+                                        <p_diapag/>
+                                    </execute-function>
+                                </set>      
+
+                                <!-- Control sobre la fecha de vencimiento si así ha sido parametrizada en el tipo de remesa -->
+                                <!--<if>
+                                    <expr>
+                                        <and>
+                                        <isnotnull><m_diaven/></isnotnull>
+                                        <lt><m_diaven/><wi_efectos_fecven/></lt>
+                                        </and>
+                                    </expr>
+                                    <then>
+                                        <exception><string>El efecto id.[<v_remesas_posponer_ideefe/>] no cumple regla de vencimiento adecuada</string></exception>
+                                    </then>
+                                </if>-->
+                                </comment>
+
+                                <!-- Aprovechamos para alojar en histórico la acción -->
+                                <!-- ====================================================== -->
+                                <!-- Alojado en histórico de acciones del efecto   (inicio) -->
+                                <!-- ====================================================== --> 
+                                <set name='wi_efectos_hisacc_seqno'>
+                                    <execute-function name='wi_efectos_hisacc_ins'>
+                                        <v_remesas_posponer_ideefe/>
+                                        <wi_remesas_hisacc_seqno/>
+                                        <string>POSPONER</string> 
+                                        <string>wi_remesas</string>
+                                        <p_histip/>
+                                        <p_motivo/>
+                                        <m_user/>
+                                        <m_curr/>
+                                    </execute-function> 
+                                </set>  
+                                <!-- ====================================================== -->
+                                <!-- Alojado en histórico de acciones del efecto      (fin) -->
+                                <!-- ====================================================== -->                             
+                            </do>
+                        </foreach>                      
+            
+                    </then>
+                    <else>
+                        <exception><string>Remesa destino blindada o ya enviada a ERP.</string></exception>
+                    </else>
+                </if>
+                
+                <!-- Asociamos todos los efectos a la nueva remesa -->
+                <call name='wi_remesas_add_efecs'>
+                    <wi_remesas_des_cabid/>
+                    <string/>             <!-- Tipo de acción categorizada, solo para acciones manuales desde pantalla -->
+                    <string/>             <!-- Motivo, solo para acciones manuales desde pantalla -->
+                    <string>M</string>    <!-- Tipo de asociación a remesa, N No asociado, M Asociado a remesa manualmente, R Asociado a remesa por regla de asociación automática -->
+                    <string>V</string>    <!-- Tipo de resulset, V vtable (se usará el argumento p_v_add_efecs) o S sqltable (se usará el argumento p_mnemot) -->
+                    <string/>             <!-- Mnemoténico de la sqltable en caso de asorem igual a M ya que podemos asociar desde distintas SQL Tables -->
+                    
+                    <!-- Vtable con los efectos a asociar a qué remesas. Solo para argumento asorem igual a R, para el resto esta SQL Table se obtiene por sqltable.getSelected -->
+                    <vtable.filter name='v_remesas_posponer'>
+                        <column name='clasif_solo' regexp='#m_clasif_solo' />
+                    </vtable.filter> 
+                </call>     
+                <!-- Dentro de este script ya se hace una validación de la remesa destino -->    
+            </do>
+        </foreach>
+
+        <!-- ================================================================= -->
+        <!-- deister_mpi 29/09/2020                                            -->
+        <!--                                                                   -->
+        <!-- Antes de lanzar la validación de la remesa origen, comprobar que  -->
+        <!-- sigue existiendo; ya que al quedar vacía de efectos será          -->
+        <!-- eliminada automáticamente.                                        -->
+        <!-- ================================================================= -->
+        <select prefix='wi_remesas_ori_'>
+            <columns>
+                <rowid table='wi_remesas' /> <alias name='rid' />
+            </columns>
+            <from table='wi_remesas' />
+            <where>
+                wi_remesas.cabid = <p_remesa />
+            </where>
+        </select>
+        
+        <if>
+            <expr>
+                <isnotnull><wi_remesas_ori_rid /></isnotnull>
+            </expr>
+            <then>
+                <call name='wi_remesas'>
+                    <string>L</string>
+                    <wi_remesas_ori_rid />
+                </call>                     
+            </then>    
+        </if>     
+
+    </body>
+</xsql-script>

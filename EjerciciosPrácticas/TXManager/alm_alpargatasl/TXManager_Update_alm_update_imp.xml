@@ -5,3 +5,11 @@
         <arg>${cabid}</arg>
     </args>
 </call>
+
+<call name='alm_valida_fecha'>
+    <args>
+        <arg>${cabid}</arg>
+        <arg>${linid}</arg>
+        <arg>${fecha}</arg>
+    </args>
+</call>

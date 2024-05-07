@@ -87,3 +87,87 @@ https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%2
 
 FUNCIONES MATH
 https://docs.deistercloud.com/content/Axional%20development%20tools.15/Axional%20Studio.2/Development%20Guide.10/Languages%20reference.16/XSQL%20Script.10/Packages.40/math
+
+---------------------------------------------------------------
+
+Fase 5
+
+-- TRABAJO CON ESTILOS (FREE)
+
+---------------------------------------------------------------
+
+FASE 6
+-- TABLAS NUEVAS
+    - MAestro clientes
+        - codigo  CHAR(10) PK
+        - CIF  CHAR(9) IU (    (<index name='i_rec_factuasoc1' columns='cabid' unique='yes'/> <unique name='u_tabla' columna/>))
+        - Nombre CHAR(80)
+        - Estado CHAR(1)
+        - Fecha baja DATE
+        - deuda INTEGER 
+        - Importe total de deuda DECIMAL(17,2)
+        
+    - Maestro de tipologias
+        - codigo  CHAR(4)     PK
+        - Descripcion  CHAR(80)
+        - Estado   CHAR(1)
+        - Fechade baja DATE
+
+    - MAestro de articulos
+        - codigo CHAR (4) PK
+        - Descripcion CHAR(80)
+        - tipologias CHAR(4) FK de codigo tipologias
+        -estado  CHAR(1)
+        -fecha de baja DATE
+        - referencia CHAR(30)
+        - importe  DECIMAL(17,2)
+        
+    
+    - Maestro Numeración
+        - codigo (numero)  PK
+        - secuencia  (numero)  => Formato 0000X
+        - Estado. (char(1))
+            
+            ***********************************************************
+            ***********************************************************
+Inserción:
+    * DATOS:
+        - Debe tomar el año para el código aunque sea un dato editable. 
+        - El valo del campo secuencia debe ser 1 ya que es un nuevo registro
+        - El estado activo.
+    
+    * VALIDACIONES:
+        - Si el valor del codigo ya está registrado debe mostrar un mensaje diciendo que para ese codigo ya existe un registro.
+        - Si hay un registro en estado Abierto y el año introducido coincide con el año en curso, debe cerrar primero el año anterior e insertar el nuevo registro.
+
+
+ACTUALIZACION:
+    
+    -Boton cerrar Solo podrá actualizarse mediante botón a estado Cerrado un registro que esté abierto. 
+    -Boton abrir Actualizar a estado Abierto: Comprobar si existe algun registro que ya esté en abierto, en caso de que exista cierra el abierto pero primeramente deberá preguntar ssi quiere seguir con el proceso. y abrir el registro cerrado
+    
+
+ELIMINACION:
+    - Solo podrá eliminar registros que no tengan ningún documento (Cabecera) asociado, es decir, que el nº de código(secuencia) sea 1.
+
+
+
+            ***********************************************************
+            ***********************************************************
+             
+            
+    Para todas ellas:
+        - Esquema
+        - Diccionarios
+        - Objetos
+        - Atributos
+        - Helpers
+    
+    
+agregar campo cliente en tabla cabecera CHAR(4) FK de codigo clientes
+Agregar campo numero de ticket en cabecera    (CHAR12)
+    
+Agregar campo numero de ticket en cabecera. y este numero de ticket estárá formado por los dos ultimos digitos del año, el codigo que hay en el maestro de numeración (Solo puede existir un único registro activo). Una vez se crea el ticket ese código (el del maestro de numeración), se incrementará en 1. 
+Botnes abrir y cerrar numeraciones
+
+

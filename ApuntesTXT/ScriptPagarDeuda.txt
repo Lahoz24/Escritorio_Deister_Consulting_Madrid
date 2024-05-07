@@ -1,0 +1,179 @@
+<xsql-script name='alm_pagar_deuda'>
+    <args>
+        <arg name='p_imppag'   like='alm_maestro_clientes.imppag'   /> 
+        <arg name='p_codigo'   like='alm_maestro_clientes.codigo'   /> 
+    </args>
+    <body>
+        
+        <!--VARIABLE CON LA PETICIÓN DEL USUARIO-->
+        
+        <set name='v_pagar_deuda'>
+            <http.request.sqltable.getSelected code='TICKETS_PENDIENTES'/>
+        </set>
+        
+        <!--CONTROL EN EL CASO DE INSERTAR LOS PARÁMETROS NULOS O NO VÁLIDOS-->
+        
+        <if>
+            <expr>
+                <or>
+                    <isnull><p_imppag/></isnull>
+                    <eq><p_imppag/><number>0</number></eq>
+                </or>
+            </expr>
+            <then>
+                <exception><string>Inserta un importe válido</string></exception>
+            </then>
+        </if>
+        
+        <if>
+            <expr>
+                <or>
+                    <isnull><v_pagar_deuda/></isnull>
+                    <eq><vtable.size name='v_pagar_deuda'/><number>0</number></eq>
+                </or>
+            </expr>
+            <then>
+                <exception><string>Ninguna fila seleccionada.</string></exception>
+            </then>
+        </if>
+        
+        <!--RECOGIDA DE DATOS DEL CLIENTE-->
+        
+        <select prefix='m_'>
+            <columns>NVL(alm_maestro_clientes.impdeu,0) <alias name='impdeu'/>, NVL(alm_maestro_clientes.imppag,0) <alias name='imppag'/></columns>
+            <from table='alm_maestro_clientes'/>
+            <where>alm_maestro_clientes.codigo=<p_codigo/></where>
+        </select>
+        
+        <!--VARIABLE QUE SUMA EL IMPORTE PAGADO PREVIO CON EL IMPORTE PAGADO PASADO POR PARÁMETRO + UPDATEO LA COLUMNA-->
+        
+        <set name='m_resul'>
+            <add><m_imppag/><p_imppag/></add>
+        </set>
+        
+        <update table='alm_maestro_clientes'>
+            <column name='imppag'><m_resul/></column>
+            <where>alm_maestro_clientes.codigo = <p_codigo/></where> 
+        </update>
+
+        <!--ORDENACIÓN DE LA VTABLE POR FECFIN-->
+        
+        <vtable.sort name='v_pagar_deuda' columns='fecfin'/>
+          
+        <!--RECORRIDO SECUENCIAL DE LA VTABLE CREADA-->
+        
+        <foreach>
+            <in prefix='m2_'>
+                <v_pagar_deuda/>
+            </in>
+            <do>
+                
+                <!--SI EL IMPORTE PAGADO ES MAYOR QUE LA DEUDA RESTANTE DEL TICKET -->
+                
+                <if>
+                    <expr><gt><p_imppag/><m2_dif/></gt></expr>
+                    <then>
+                        
+                        <set name='p_imppag'><sub><p_imppag/><m2_dif/></sub></set>
+                        
+                        <update table='alm_alpargatash'>
+                            <column name='estado'><string>P</string></column>
+                            <column name='caberr'><null/></column>
+                            <column name='imppag'><m2_imptot/></column>
+                            <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                        <update table='alm_alpargatasl'>
+                            <column name='estado'><string>P</string></column>
+                            <where>alm_alpargatasl.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                    </then>
+                </if>
+                
+                <!--SI EL IMPORTE PAGADO ES IGUAL QUE LA DEUDA RESTANTE DEL TICKET-->
+                
+                <if>
+                    <expr><eq><p_imppag/><m2_dif/></eq></expr>
+                
+                    <then>
+                        
+                        <set name='p_imppag'><number>0</number></set>
+                        
+                        <update table='alm_alpargatash'>
+                            <column name='estado'><string>P</string></column>
+                            <column name='caberr'><null/></column>
+                            <column name='imppag'><m2_imptot/></column>
+                            <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                        <update table='alm_alpargatasl'>
+                            <column name='estado'><string>P</string></column>
+                            <where>alm_alpargatasl.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                    </then>
+                </if>
+                
+                <!--SI EL IMPORTE PAGADO ES MENOR QUE LA DEUDA RESTANTE DEL TICKET-->
+                
+                <if>
+                    <expr><lt><p_imppag/><m2_dif/></lt></expr>
+            
+                    <then>
+                        
+                        <set name='m2_dif'><sub><m2_dif/><p_imppag/></sub></set>
+                        <set name='p_imppag'><number>0</number></set>       <!-- ESTO LO HAGO PARA QUE AL SALIR DEL FOREACH, NO SE QUITE CHECKBOX DE DEUDA-->
+                        <set name='m_imppag_actual'><add><m2_imppag/><m2_dif/></add></set>
+                        <set name='m_impdeu_actual'><sub><m_impdeu/><m_imppag_actual/></sub></set>
+    
+                        
+                        <update table='alm_alpargatash'>
+                            <column name='imppag'><m_imppag_actual/></column>
+                            <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                        <update table='alm_maestro_clientes'>
+                            <column name='impdeu'><m_impdeu_actual/></column>
+                            <where>alm_maestro_clientes.codigo = <p_codigo/></where> 
+                        </update>
+                        
+                        <foreach.exit/>
+                        
+                    </then>
+                </if>
+            </do>
+        </foreach>
+        
+        <!--COMPRUEBO SI SIGUE HABIENDO IMPORTE DEUDA EN EL CLIENTE-->
+        
+        <select prefix='m3_'>
+            <columns>NVL(alm_maestro_clientes.impdeu,0) <alias name='impdeu'/></columns>
+            <from table='alm_maestro_clientes'/>
+            <where>alm_maestro_clientes.codigo=<p_codigo/></where>
+        </select>
+        
+        <!--SI EL IMPORTE PAGADO SIGUE SIENDO MAYOR INCLUSO QUE LA DEUDA QUE TENÍA, SE LE DEVUELVE-->
+        
+        <if>
+            <expr>
+                <and>
+                    <ne><p_imppag/><number>0</number></ne>
+                    <eq><m3_impdeu/><number>0</number></eq>
+                </and>
+            </expr>
+            <then>
+                
+                <update table='alm_maestro_clientes'>
+                    <column name='impdev'><p_imppag/></column>
+                    <column name='deuda'><number>0</number></column>
+                    <column name='impdeu'><number>0</number></column>
+                    <where>alm_maestro_clientes.codigo = <p_codigo/></where> 
+                </update>
+                
+            </then>
+        </if>
+        
+        
+    </body>  
+</xsql-script>

@@ -1,0 +1,224 @@
+<xsql-script name='alm_pagar_deuda2'>
+    <body>
+        <set name='p_imppag'><number>35</number></set>
+        <set name='p_codigo'><string>0004</string></set>
+
+        <println><string>------------------------------</string></println>
+
+        <println><string>ARGUMENTOS QUE LE PASO</string></println>
+        <println><p_imppag/></println>
+        <println><p_codigo/></println>
+
+        <println><string>------------------------------</string></println>
+
+        <select prefix='m_'>
+            <columns>NVL(alm_maestro_clientes.impdeu,0) <alias name='impdeu'/>,NVL(alm_maestro_clientes.imppag,0) <alias name='imppag'/>,NVL(alm_maestro_clientes.impdev,0) <alias name='impdev'/></columns>
+            <from table='alm_maestro_clientes'/>
+            <where>alm_maestro_clientes.codigo=<p_codigo/></where>
+        </select>
+
+        <set name='m_imppag_actual'><p_imppag/></set>
+        <set name='m_impdeu_actual'><m_impdeu/></set>
+
+        <println><string>VARIABLES DINÁMICAS</string></println>
+        <println><string>IMPPAG_ACTUAL = P_IMPPAG</string></println>
+        <println><m_imppag_actual/></println>
+        <println><string>IMPDEU_ACTUAL = M_IMPDEU</string></println>
+        <println><m_impdeu_actual/></println>
+        
+        <println><string>------------------------------</string></println>
+
+        <foreach>
+            <select prefix='m2_'>
+                <columns>
+                    alm_alpargatash.cabid,
+                    alm_alpargatash.codcli,
+                    alm_alpargatash.codigo,
+                    alm_alpargatash.numtic,
+                    alm_alpargatash.descri,
+                    alm_alpargatash.fecini,
+                    alm_alpargatash.fecfin,
+                    alm_alpargatash.import,
+                    alm_alpargatash.dtoimp,
+                    alm_alpargatash.imptot,
+                    alm_alpargatash.imppag,
+                    (alm_alpargatash.imptot - alm_alpargatash.imppag) <alias name='dif'/>,
+                    alm_alpargatash.estado
+                </columns>
+                <from table='alm_alpargatash'>
+                    <join type='left' table='alm_maestro_clientes'>
+                        <on>alm_alpargatash.codcli = alm_maestro_clientes.codigo</on>
+                    </join>
+                </from>
+                <where>
+                    (alm_alpargatash.estado = 'W' OR alm_alpargatash.estado = 'L') AND alm_alpargatash.cabid IN(44,50,51)
+                </where>
+                <order>alm_alpargatash.fecfin</order>
+            </select>
+
+            <do>
+                <println><string>DATOS DEL REGISTRO ACTUAL</string></println>
+                <println><string>CABID</string></println>
+                <println><m2_cabid/></println>
+                <println><string>IMPTOT ACTUAL</string></println>
+                <println><m2_imptot/></println>
+                <println><string>IMPPAG ACTUAL</string></println>
+                <println><m2_imppag/></println>
+                <println><string>DIF ACTUAL</string></println>
+                <println><m2_dif/></println>
+
+                <println><string>--------------------------------------------------</string></println>                  
+
+
+                <if>
+                    <expr><gt><m_imppag_actual/><m2_dif/></gt></expr>
+                    <then>
+
+                        <println><string>EL IMPPAG_ACTUAL ES MAYOR QUE LA DIF</string></println>
+                        <if>
+                            <expr><eq><m2_estado/><string>L</string></eq></expr>
+                            <then>
+                                <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m2_dif/></sub></set>
+                            </then>
+                        </if>
+
+                        <set name='m_imppag_actual'><sub><m_imppag_actual/><m2_dif/></sub></set>
+                        
+                        <println><string>EL IMPPAG_ACTUAL ES:</string></println>
+                        <println><m_imppag_actual/></println>
+                        <println><string>EL IMPDEU_ACTUAL ES:</string></println>
+                        <println><m_impdeu_actual/></println>
+                        <println><string>EL IMPTOT DEL TICKET ES:</string></println>
+                        <println><m2_imptot/></println>
+                        <println><string>EL CABID DEL TICKET ES:</string></println>
+                        <println><m2_cabid/></println>  
+                        <println><string>--------------------------------------------------</string></println>                     
+                        
+                        
+                    </then>
+                    
+                    <else-if>
+                        
+
+                        <expr><eq><m_imppag_actual/><m2_dif/></eq></expr>
+                        <then>
+
+                            <println><string>EL IMPPAG_ACTUAL ES IGUAL QUE LA DIF</string></println>
+                            <if>
+                                <expr><eq><m2_estado/><string>L</string></eq></expr>
+                                <then>
+                                    <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m2_dif/></sub></set>
+                                </then>
+                            </if>
+
+                            <set name='m_imppag_actual'><number>0</number></set>
+
+                            <println><string>EL IMPPAG_ACTUAL ES:</string></println>
+                            <println><m_imppag_actual/></println>
+                            <println><string>EL IMPDEU_ACTUAL ES:</string></println>
+                            <println><m_impdeu_actual/></println>
+                            <println><string>EL IMPTOT DEL TICKET ES:</string></println>
+                            <println><m2_imptot/></println>
+                            <println><string>EL CABID DEL TICKET ES:</string></println>
+                            <println><m2_cabid/></println>
+                            
+                            <println><string>--------------------------------------------------</string></println>
+
+                        </then>
+                    </else-if>
+                
+                    <else>
+
+                            <println><string>EL IMPPAG_ACTUAL ES MENOR QUE LA DIF</string></println>
+                            
+                            <if>
+                                <expr><eq><m2_estado/><string>L</string></eq></expr>
+                                <then>
+                                    <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m_imppag_actual/></sub></set>
+                                </then>
+                            </if>
+
+                            <set name='imppag_total'><add><m2_imppag/><m_imppag_actual/></add></set>
+                            <set name='m_imppag_actual'><number>0</number></set>
+                            
+                            <println><string>EL IMPDEU_ACTUAL ES:</string></println>
+                            <println><m_impdeu_actual/></println>
+                            <println><string>EL IMPPAG_TOTAL ES:</string></println>
+                            <println><imppag_total/></println>
+
+                            <println><string>--------------------------------------------------</string></println>                            
+                            
+                    </else>
+                </if>
+                
+                <if>
+                    <expr><le><m_imppag_actual/><number>0</number></le></expr>
+                    <then>
+                        <foreach.exit/>
+                    </then>
+                </if>
+                
+            </do>
+        </foreach>
+        
+        
+        <set name='m_imppag_cliente'><add><m_imppag/><p_imppag/></add></set>
+        <set name='m_impdev_cliente'><add><m_impdev/><m_imppag_actual/></add></set>
+        
+
+
+        <if>
+            <expr>
+                <gt><m_impdeu_actual/><number>0</number></gt>
+            </expr>
+            <then>
+                <println><string>EL IMPDEU_ACTUAL ES MAYOR QUE 0</string></println>
+
+                <println><string>EL IMPPAG_CLIENTE ES:</string></println>
+                <println><m_imppag_cliente/></println>
+                <println><string>EL IMPDEV_CLIENTE ES:</string></println>
+                <println><m_impdev_cliente/></println>
+                <println><string>EL IMPDEU_ACTUAL ES:</string></println>
+                <println><m_impdeu_actual/></println>                
+                
+            </then>
+        </if>
+        
+        
+        <if>
+            <expr>
+                <eq><m_impdeu_actual/><number>0</number></eq>
+            </expr>
+            <then>
+                <println><string>EL IMPDEU_ACTUAL ES IGUAL QUE 0</string></println>
+
+                <println><string>EL IMPPAG_CLIENTE ES:</string></println>
+                <println><m_imppag_cliente/></println>
+                <println><string>EL IMPDEV_CLIENTE ES:</string></println>
+                <println><m_impdev_cliente/></println>
+                
+            </then>
+        </if>
+        
+        
+        <if>
+            <expr>
+                <lt><m_impdeu_actual/><number>0</number></lt>
+            </expr>
+            <then>
+                <println><string>EL IMPDEU_ACTUAL ES MENOR QUE 0</string></println>
+                
+                <set name='m_impdev_cliente_neg'><add><m_impdev/><eval.neg><m_impdeu_actual/></eval.neg></add></set>
+
+                <println><string>EL IMPPAG_CLIENTE ES:</string></println>
+                <println><m_imppag_cliente/></println>
+                <println><string>EL IMPDEV_CLIENTE_NEG ES:</string></println>
+                <println><m_impdev_cliente_neg/></println>
+                
+            </then>
+        </if>
+
+        <println><string>------------------------------</string></println>
+        
+    </body>  
+</xsql-script>
