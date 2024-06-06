@@ -1,0 +1,205 @@
+<xsql-script>
+    <body>
+ <!-- variables genericas -->
+        <set name='m_user'><system.user.getCode/></set>
+        <set name='m_date'><date.current /></set>
+        <!-- Siempre estamos en la hoja primera -->
+        <set name='i'><number>1</number></set>
+        
+        <!-- Se obtienen los datos  de los ficheros cargados, solo aquellos que estén activos. Solo puede haber por cada tipo F o C uno de estado (A)ctivo. -->
+        <select prefix='m_'>
+            <columns>
+                seqno, file_name, file_data, file_type, file_size
+            </columns>
+            <from table='alm_carga_fich'/>
+            <where>
+                seqno=9
+            </where>
+        </select>    
+        
+        <!-- Preparamos el fichero para leer -->
+        <file.out.open id='out2'>
+            <file name='file_wb_src' type='temp'/>
+        </file.out.open>
+        <file.out.write id='out2'>
+            <m_file_data />
+        </file.out.write>
+        <file.out.close id='out2' />
+
+        <!-- Control de duplicados por dcrc -->
+        <select prefix='m_'>
+            <columns>COUNT(*) <alias name='cont' /></columns>
+            <from table='alm_carga_fich' />
+            <where>file_name = <m_file_name/></where>
+        </select>
+
+        <if>
+            <expr><gt><m_cont/><number>1</number></gt></expr>
+            <then>
+                <exception><string>El fichero <m_file_name/>, con este nombre ya ha sido cargado anteriormente</string></exception>
+            </then>
+        </if>
+
+        <!-- Solo si puedo tratar el excel, continuo -->
+        <try>
+            <body>
+                <set name='wb_src'>
+                    <excel.Workbook 
+                        type='xlsx' 
+                        stream='false'
+                        stream-window-size='100'
+                        encoding='ISO-8859-1'
+                        >
+                        <file name='file_wb_src'  type='temp' />
+                        <!-- m_file_data / -->
+                    </excel.Workbook>
+                </set>
+            </body>
+            <catch>
+                <!-- Mensaje a reportar -->
+                 <exception><string>Tipo de fichero [<m_file_type/>] no soportado.</string></exception>
+            </catch>
+        </try>
+        
+        <!-- Vtable donde mapear las columnas a insertar según tabla. -->
+
+        <!-- De esta consulta obtenemos el nombre de la tabla, las columnas, el nº de columnas y el tipo de las columnas de clientes-->
+        <vtable name='v_maptabla'>
+            <select>
+                <columns>
+                    systables.tabname, syscolumns.colname, syscolumns.colno, syscolumns.coltype
+                </columns>
+                <from table='systables'>
+                    <join table='syscolumns'>
+                        <on>systables.tabid=syscolumns.tabid </on>
+                    </join>
+                </from>
+                <where>
+                    systables.tabname='alm_fich_err'
+                </where>
+            </select>
+        </vtable>
+        
+        <!-- El total de columnas que debe tener el fichero (sin contar los datos de control,serial e identificador de fichero que estos no vienen en el excel)-->
+        <set name='totcol'><number>7</number></set>
+        <!-- Compruebo si el total de columnas del excel coincide con el de la tabla, si no es así mostramos error -->
+        <set name='coldif'><sub><totcol/><m_maxcol/></sub></set>
+        <if>
+            <expr><ne><coldif/><number>0</number></ne></expr>
+            <then>
+                <exception><string>En la hoja [<i/>] hay [<m_maxcol/>] columnas y debe tener [<totcol/>]</string></exception>
+            </then>
+        </if>
+        
+        <table name='@alm_carga_fich' temp='yes'>
+            <column name='cif' type='char' size='9'/>
+            <column name='cabid' type='integer' />
+        </table>
+        
+        <!-- Resto 1 al total de columnas porque empieza en 0 a contar no en 1 -->
+        <set name='m_maxcol'><sub><m_maxcol/>1</sub></set>                
+        <!-- Recorro las filas menos la primera que es cabecera -->
+        <for name='f' start='1' end='#m_maxrow'>                
+            <do>                        
+                <!-- Obtengo la fila de trabajo -->
+                <try>
+                    <body>
+                        <set name='m_row_src'>
+                            <excel.Sheet.getRow row='#f'>
+                                <hoja_src/>
+                            </excel.Sheet.getRow>
+                        </set>
+                    </body>
+                    <catch>
+                        <exception><string>Fila: [<f/>] Hoja: [<i/>] . Max filas [<m_maxrow/>]  <error.message/></string></exception>
+                    </catch>
+                </try>
+                <!-- Como las 3 primeras columnas de la tabla alm_fich_err son un cabid,el id del fichero y mensaje de error de la fila, comenzamos en la 4 a obtener los datos de la v_maptabla-->
+                <set name='m_col'><number>4</number></set>
+                
+                 <!-- Recorro las columnas por cada fila y obtengo los valores para cada columna -->
+                <for name='col' start='0' end='#m_maxcol'>
+                    <do>
+					    <!-- Obtengo el valor de la celda en la que me encuentro -->
+                        <set name='value'><excel.Row.getCell col='#col'>
+                            <m_row_src />
+                        </excel.Row.getCell></set>
+                        <!-- Obtengo los datos de la columna que estoy recorriendo -->
+                        <set name='v_linea'>
+                            <vtable.filter name='v_maptabla'>
+                                <column name='colno' regexp='#m_col' />
+                            </vtable.filter>
+                        </set>
+
+                        <!-- Obtengo nombre de la tabla para preparar el insert, si es la columna 0, alm_maestro_clientes, sino, alm_alpargatasl -->
+                        <set name='m_tabla'>
+                            <vtable.elementAt name='v_linea' row='0' column='tabname' />
+                        </set>
+
+                        <!-- Obtengo nombre de la columna para preparar el insert  -->
+                        <set name='m_columna'>
+                            <vtable.elementAt name='v_linea' row='0' column='colname' />
+                        </set>
+                        <!-- Obtengo tipo de la columna para preparar el insert  -->
+                        <set name='m_tipo'>
+                            <vtable.elementAt name='v_linea' row='0' column='coltype' />
+                        </set>
+
+                        <!-- Definición de la variable para para su utilización    -->
+                        <!-- en el insert prefix final                             -->
+                        <set name='vbl_insert_name'>
+                            <string><m_tabla /><string>_</string><m_columna /></string>
+                        </set>
+
+                        <!-- Obtengo la celda de trabajo -->
+                        
+                        <set name='m_cell_src'>
+                            <excel.Row.getCell col='#col'>
+                                <m_row_src />
+                            </excel.Row.getCell>
+                        </set>
+                        <try>
+                            <body>
+                                <!-- Obtengo el valor de la celda de trabajo -->
+                                <set name='cell_value'>
+                                    <excel.Cell.getCellValue>
+                                        <m_cell_src/>                                        
+                                    </excel.Cell.getCellValue>
+                                </set>
+                                <!-- Obtengo el tipo de la celda -->
+                                <set name='cell_type'>                                            
+                                    <excel.Cell.getCellType>
+                                        <m_cell_src/>
+                                    </excel.Cell.getCellType>                                                
+                                </set>
+                            </body>
+                            <catch>
+                                <set name='fila'><add><f/><number>1</number></add></set>
+                                <exception><string>Hoja <hoja/>;  Col <col/>; Fila <fila/>; <error.message/></string></exception>
+                            </catch>
+                            
+                        </try>
+
+                        <!-- Llamamos a funcion que formatea el valor a lo correcto para cada columna -->
+                        <set name='#vbl_insert_name'>
+                            <trat_tipo_datos>
+                                <m_tipo/>        <!-- Tipo de columna -->
+                                <cell_value/>    <!-- el valor d ela celda -->
+                                <f/>             <!-- Fila en la que estamos -->
+                                <col />          <!-- columna que tratamos -->
+                                <i/>             <!-- Hoja que estamos recorriendo del fichero -->
+                                <cell_type/>     <!-- Tipo de la celda -->                                        
+                            </trat_tipo_datos>
+                        </set>
+                        
+                        <set name='m_col'><add><m_col/><number>1</number></add></set>
+                    </do>
+                </for>
+                <!-- Una vez obtenidos los valores de la fila, insertamos en la tabla correspondiente-->
+                
+            </do>
+        </for>
+
+
+    </body>
+</xsql-script>

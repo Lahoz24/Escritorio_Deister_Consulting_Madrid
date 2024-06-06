@@ -1,0 +1,104 @@
+<xsql-script name='email_rec'>
+    <body>
+        
+        <!--VARIABLE CON LA PETICIÓN DEL USUARIO-->
+        
+        <set name='v_email_reclamacion'>
+            <http.request.sqltable.getSelected code='TICKETS_PENDIENTES'/>
+        </set>
+
+
+        <!--ORDENACIÓN DE LA VTABLE POR FECFIN-->
+        
+        <vtable.sort name='v_email_reclamacion' columns='fecfin'/>
+        
+        <!-- VARIABLE CONSTANTE PARA EL PIE DEL MENSAJE-->
+        
+        <set name='m_pie_email'><string> Atentamente, el equipo de aniquila morosos de Alpargatas C.D. </string></set>
+        <set name='m_iterador'><number>0</number></set>
+        <set name='m_dif_total'><number>0</number></set>
+        <set name='m_contenttype'><string>text/html</string></set>
+        <set name='m_fob_file'><string>Tickets_deuda.pdf</string></set>
+        <set name='m_encabezado_tabla'>
+           <html.tr>
+                <html.th><string.space/></html.th>
+                <html.th>Número Ticket</html.th>
+                <html.th>Descripción</html.th>
+                <html.th>Fecha Inicio</html.th>
+                <html.th>Fecha Final</html.th>
+                <html.th>Importe Total</html.th>
+                <html.th>Importe Pagado</html.th>
+                <html.th>Deuda Restante del Ticket</html.th>
+            </html.tr>
+        </set>
+        
+        <!--RECORRIDO SECUENCIAL DE LA VTABLE CREADA-->
+        
+        <foreach>
+            <in prefix='m_'>
+                <v_email_reclamacion/>
+            </in>
+            
+            <before-group of='m_codcli'>
+                
+		        <set name='m_encabezado_email'><html.p>Estimado cliente,<html.br/><html.br/> A continuación se detallan los tickets sin pagar:<html.br/><html.br/></html.p></set>
+     
+			</before-group>
+            <after-group of='m_codcli'>
+                <set name='m_content'>
+                    <string>
+                        <m_encabezado_email/>
+                        <html.table>
+                            <string>
+                                <m_encabezado_tabla/>
+                            </string>
+                        </html.table>
+                    </string>
+
+                </set>
+<!--                <set name='m_fob'>
+                        <fop.form code='alm_alpargatash_print' cond=''/> 
+                    </set>-->
+                
+		        <mail from='alvaro.lahoz@deister.es' to= '${m_email}' subject='Deuda Tickets'>
+                    <content type='${m_contenttype}'>
+                        <m_content/>
+                    </content>
+                    
+<!--                <attachs>
+                        <mail.attach type='application/pdf' name='${m_fob_file}'><m_fob/></mail.attach>
+                    </attachs>-->
+                
+                </mail>
+                
+                <set name='m_iterador'><number>0</number></set>
+                <set name='m_dif_total'><number>0</number></set>
+                <set name='m_cuerpo_tabla'><null/></set> 
+                
+            </after-group>
+			
+            <do>
+                
+                <set name='m_dif_total'><add><m_dif_total/><m_dif/></add></set>
+                <set name='m_iterador'><add><m_iterador/><number>1</number></add></set>
+   		        <set name='m_cuerpo_tabla'> 
+   		            <string>
+   		                <m_cuerpo_tabla/>
+                        <html.tr>
+                            <html.td><m_iterador/></html.td>
+                            <html.td><m_numtic/></html.td>
+                            <html.td><m_descri/></html.td>
+                            <html.td><m_fecini/></html.td>
+                            <html.td><m_fecfin/></html.td>
+                            <html.td><m_imptot/> </html.td>
+                            <html.td><m_imppag/></html.td>
+                            <html.td><m_dif/></html.td>
+                        </html.tr>
+   	                </string> 
+   	            </set>
+                
+            </do>
+        </foreach>
+        
+    </body>  
+</xsql-script>

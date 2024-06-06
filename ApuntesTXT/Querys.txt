@@ -16,3 +16,18 @@
 
     ALTER TABLE alm_alpargatash MODIFY import decimal (17,2)
 
+* SENTENCIA PARA SACAR EL COLTYPE Y VERIFICAR SI SON NULOS O NO *
+
+    <select>
+        <columns>
+            systables.tabname, syscolumns.colname, syscolumns.colno, syscolumns.coltype
+        </columns>
+        <from table='systables'>
+            <join table='syscolumns'>
+                <on>systables.tabid=syscolumns.tabid </on>
+            </join>
+        </from>
+        <where>
+            systables.tabname='gprefact' AND syscolumns.colname IN ("cifpro","idfpr","impfac","motdev","fecdoc")
+        </where>
+    </select>

@@ -1,0 +1,600 @@
+<xsql-script name='alm_carga_fich'>
+    <args>
+        <arg name='p_event' type='string'/>
+        <arg name='p_rowid' type='auto'/>
+    </args>
+    <body>
+        
+        <!-- ***************************************** AQUÍ EMPIEZA TRAT_TIPO_DATOS ****************************************************************** -->
+        <!-- Función que trata los tipos de datos para formatearlos si fuese necesario -->
+        
+        <function name='trat_tipo_datos'>
+            <args>
+                <arg name='p_tipo'/>       <!-- Tipo SERIAL = 262; Tipo CHAR = 0; tipo INT = 2; tipo DATE = 7; Tipo DECIMAL =5; Tipo VARCHAR=13 (SI ES REQUERIDO, +256) -->
+                <arg name='p_value'/>      <!-- el valor de la celda -->
+                <arg name='f'/>            <!-- Fila en la que estamos -->
+                <arg name='c'/>            <!-- columna que tratamos -->
+                <arg name='p_hoja'/>       <!-- Tipo de fichero (F)acturacion ó (C)onsumo -->
+                <arg name='p_celltype'/>   <!-- Tipo de la celda del excel -->
+            </args>
+            <body>
+                <!-- Según el tipo de columna trataremos el dato de una forma u otra -->
+                <!-- Tipo SERIAL = 262; Tipo CHAR = 0; tipo INT = 2; tipo DATE = 7; Tipo DECIMAL =5; Tipo VARCHAR=13 (SI ES REQUERIDO, +256) -->
+                <switch name='p_tipo' regexp='true'>
+                    <!-- tipo char no requerido | char requerido | varchar no requerido | varchar requerido -->
+                    <case value='0|13|256|269'>
+                        <set name='m_value'>
+                            <string.trim2null><p_value/></string.trim2null>
+                        </set>
+                    </case>
+                    <!-- Tipo integer -->
+                    <case value='2|258'>
+                        <!-- este valor puede venir a nulo por lo que en caso de ser null asignamos valor 0 -->
+                        <if>
+                            <expr><isnull><p_value/></isnull></expr>
+                            <then><set name='m_value'><number>0</number></set></then>                        
+                            <else>
+                                <set name='m_value'>
+                                    <number><p_value/></number>
+                                </set>
+                            </else>
+                        </if>
+                    </case>
+                    <!-- tipo date -->
+                    <case value='7|263'>
+                        <!-- variable para saber si viene como numero o no -->
+                        <set name='isnan'><number>0</number></set>
+                        <!-- Verificamos si tiene barras (15/10/2016) si así fuera las sutituimos por guiones.-->
+                        <set name='format_barr'><string.find><p_value/><string>/</string></string.find></set>
+                        <set name='format_gui'><string.find><p_value/><string>-</string></string.find></set>
+                        <try>
+                            <body>
+                                <set name='valor'><number><p_value/></number></set>
+                            </body>
+                            <catch>
+                                <set name='isnan'><number>1</number></set>
+                            </catch>
+                        </try>
+                        <if>
+                            <!-- tiene barras "/" -->
+                            <expr><ne><format_barr/><number>-1</number></ne></expr>
+                            <then>
+                                <set name='m_value'><string.replace><p_value/><string>/</string><string>-</string></string.replace></set>
+                            </then>
+                            <else-if>
+                                <!-- guiones no hacemos nada lo dejamos tal cual -->
+                                <expr><ne><format_gui/><number>-1</number></ne></expr>
+                                <then>
+                                    <set name='m_value'><p_value/></set>
+                                </then>
+                            </else-if>
+                            <else-if>
+                                <expr><eq><isnan/><number>0</number></eq></expr>
+                                <then>
+                                    <set name='m_value'><select><columns>CAST(<p_value/> AS DATE) - 1 units day </columns><from table='cdataemp'/></select></set>
+                                </then>
+                            </else-if>
+                            <else>
+                                <!-- como las columnas empiezan en 0 le sumamos uno para que al verlo en el excel cuadre con la columna -->
+                                <set name='colu'><add><c/><number>1</number></add></set>
+                                <!-- si no son guiones o barras damos exception. Porque inicialmente no se trata. si pusieran nuevos formatos habria que tratarlos en este bloque. -->
+                                <exception><string>El formato de la fecha en la fila [<f/>] columna [<colu/>] no es correcto en la hoja <p_hoja/>.</string></exception>
+                            </else>
+                        </if>
+                    </case>
+                    <!-- tipo decimal -->
+                    <case value='5|261'>
+                        <!-- este valor puede venir a nulo por lo que en caso de ser null asignamos valor 0 -->
+                        <if>
+                            <expr><isnull><p_value/></isnull></expr>
+                            <then><set name='p_value'><number>0</number></set></then>
+                        </if>
+                        
+                        <!-- reemplazamos puntos por nada 1.000,02 -> 1000,02 -->
+                        <set name='format_mil'><string.find><p_value/><string>.</string></string.find></set>
+                        <set name='format_dec'><string.find><p_value/><string>,</string></string.find></set>   
+                        
+                        <if>
+                            <!-- Si format_mil es distinto de -1 quiere decir que lo ha encontrado -->
+                            <expr><ne><format_mil/><number>-1</number></ne></expr>
+                            <then>  
+                                <!-- comprobamos tambien si ha encontrado format_dec -->
+                                <if>    
+                                    <expr><ne><format_dec/><number>-1</number></ne></expr>
+                                    <then> 
+                        
+                                        <!-- reemplazamos punto por nada, y coma por punto -->
+                                        <set name='numformat'><string.replace><p_value/><string>.</string><string/></string.replace></set>  
+                        
+                                        <!-- reemplazamos coma por punto y redondeamos a 2 decimales 1000,02 -> 1000.02-->
+                                        <set name='numformat'><string.replace><numformat/><string>,</string><string>.</string></string.replace></set>                
+                        
+                                        <set name='m_value'><number><math.round><numformat/><number>2</number></math.round></number></set>
+                                    </then>
+                                    <else>
+                        
+                                        <!-- Hay format_mil pero no format_dec esto es porque no viene con formato de miles 1.000,02 sino 1000,02 entonces lo dejamos tal cual está-->
+                                        <set name='m_value'><number><math.round><p_value/><number>2</number></math.round></number></set>                
+                                    </else>
+                                </if>
+                            </then>
+                            <else>
+                        
+                                <set name='m_value'><number><math.round><p_value/><number>2</number></math.round></number></set>      
+                            </else>
+                        </if>
+                    </case>
+                </switch>
+                <return><m_value/></return>
+            </body>
+        </function>
+
+        <!-- ***************************************** AQUÍ ACABA TRAT_TIPO_DATOS ******************************************************************** -->
+        
+        <!-- ***************************************** AQUÍ EMPIEZA CREA_HIJAS *********************************************************************** -->
+        <!-- Función que se llama para crear registros alpargatasl y updatear fecini y fecfin del padre -->
+        
+        <function name='crea_hija'>
+            <args>
+                <arg name='p_cabid'/>
+                <arg name='p_fecha'/>
+                <arg name='p_codigo'/>
+                <arg name='p_cant'/>
+                <arg name='p_precio'/>
+                <arg name='p_dtoimp'/>
+                <arg name='p_imptot'/>
+            </args>
+            <body>
+                
+                <select prefix='alm_alpargatasl_'>
+                    <columns>alm_maestro_articulos.descri</columns>
+                    <from table='alm_maestro_articulos'/>
+                    <where>alm_maestro_articulos.codigo=<p_codigo/></where>
+                </select>
+                
+                <select prefix='alm_alpargatash_'>
+                    <columns>alm_alpargatash.fecini,alm_alpargatash.fecfin</columns>
+                    <from table='alm_alpargatash'/>
+                    <where>alm_alpargatash.cabid=<p_cabid/></where>
+                </select>
+                
+                
+                <set name='alm_alpargatasl_cabid'><p_cabid/></set>
+                <set name='alm_alpargatasl_fecha'><p_fecha/></set>
+                <set name='alm_alpargatasl_codigo'><p_codigo/></set>
+                <set name='alm_alpargatasl_cant'><number><p_cant/></number></set>
+                <set name='alm_alpargatasl_precio'><number><p_precio/></number></set>
+                <set name='alm_alpargatasl_import'><mul><alm_alpargatasl_cant/><alm_alpargatasl_precio/></mul></set>
+                <set name='alm_alpargatasl_dtoimp'><p_dtoimp/></set>
+                <set name='alm_alpargatasl_imptot'><p_imptot/></set>
+                <set name='alm_alpargatasl_estado'><string>A</string></set>
+                
+                
+                <!-- Updateo fecini y fecfin alpargatash  -->
+                
+                <if>
+                    <expr><lt><p_fecha/><alm_alpargatash_fecini/></lt></expr>
+                    <then>
+                        <set name="alm_alpargatash_fecini"><p_fecha/></set>
+                    </then>
+                    <else-if>
+                        <expr><gt><p_fecha/><alm_alpargatash_fecini/></gt></expr>
+                        <then>
+                            <set name="alm_alpargatash_fecfin"><p_fecha/></set>
+                        </then>
+                    </else-if>
+                </if>
+                
+                <update table='alm_alpargatash' prefix='alm_alpargatash_'>
+                    <where>alm_alpargatash.cabid=<p_cabid/></where>
+                </update>
+                
+                <!-- Inserto en alpargatasl -->
+                <insert table='alm_alpargatasl' prefix='alm_alpargatasl_'/>
+                
+            </body>
+        </function>
+        
+        <!-- ***************************************** AQUÍ ACABA CREA_HIJAS ************************************************************************* -->
+
+        <!-- ***************************************** AQUÍ EMPIEZA CREA_PADRES ********************************************************************** -->
+        <!-- Función que se llama para crear registros en alpargatash y alpargatasl -->
+        
+        <function name='crea_padre_hija'>
+            <args>
+                <arg name='p_cabid'/>
+                <arg name='p_fecha'/>
+                <arg name='p_cif'/>
+                <arg name='p_codigo'/>
+                <arg name='p_cant'/>
+                <arg name='p_precio'/>
+                <arg name='p_dtoimp'/>
+                <arg name='p_imptot'/>
+                <arg name='p_seqno'/>
+                <arg name='p_file_name'/>
+            </args>
+            <body>
+                <select prefix='alm_'>
+                    <columns>COUNT(*) <alias name='cont2'/>,alm_maestro_clientes.codigo <alias name='alpargatash_codcli'/></columns>
+                    <from table='alm_maestro_clientes'/>
+                    <where>alm_maestro_clientes.cif=<p_cif/></where>
+                    <group>2</group>
+                </select>
+                
+                <set name='alm_alpargatash_codigo'><string><alm_alpargatash_codcli/> <p_seqno/></string></set>
+                <set name='alm_alpargatash_descri'><string>Importado desde <p_file_name/></string></set>                        
+                <set name='alm_alpargatash_estado'><string>A</string></set>
+                <set name='alm_alpargatash_imptot'><number>0</number></set>
+                
+                <!-- Variables voy a usar en padre y en hijas -->
+        
+                <set name='alm_alpargatash_fecini'><p_fecha/></set>
+                <set name='alm_alpargatash_fecfin'><p_fecha/></set>
+        
+                <if>
+                    <expr>
+                        <or>
+                            <eq><alm_cont2/><null/></eq>
+                            <eq><alm_cont2/><number>0</number></eq>
+                        </or>
+                    </expr>
+                
+                    <then>
+                        
+                        <!-- Inserto en fichero error diciendo que no existe el cliente con ese cif, este control se haría en script trat_tip_dat + valida_datos-->
+                        
+                        <set name='alm_fich_err_ficid'><p_seqno/></set>
+                        <set name='alm_fich_err_ficherr'><string>No existe cliente dado de alta con este cif</string></set>
+                        <set name='alm_fich_err_cif'><p_cif/></set>
+                        <set name='alm_fich_err_fecha'><p_fecha/></set>
+                        <set name='alm_fich_err_codigo'><p_codigo/></set>
+                        <set name='alm_fich_err_cant'><p_cant/></set>
+                        <set name='alm_fich_err_precio'><p_precio/></set>
+                        <set name='alm_fich_err_dtoimp'><p_dtoimp/></set>
+                        <set name='alm_fich_err_imptot'><p_imptot/></set>
+                        
+                        <insert table='alm_fich_err' prefix='alm_fich_err_'/>
+            
+                    </then>
+                    <else>
+                        
+                        <!-- Inserto en alpargatash -->
+                        <insert table='alm_alpargatash' prefix='alm_alpargatash_'/>
+                        
+                        <!-- Obtengo el cabid último insertado -->
+                        <set name='m2_cabid'>
+                            <sqlca.serial/>
+                        </set>
+            
+                        <!-- Guardo el cif y cabid en la tabla temporal -->
+                        <insert table='@alm_carga_fich'>
+                            <column name='cif'><p_cif/></column>
+                            <column name='cabid'><m2_cabid/></column>
+                        </insert>
+                        
+                        <!-- FUNCIÓN HIJA EMPIEZA -->
+                        <crea_hija>
+                            <m2_cabid/>
+                            <p_fecha/>
+                            <p_codigo/>
+                            <p_cant/>
+                            <p_precio/>
+                            <p_dtoimp/>
+                            <p_imptot/>
+                        </crea_hija>
+                
+                    </else>
+                </if>
+            </body>
+        </function>                
+            
+        <!-- ***************************************** AQUÍ ACABA CREA_PADRES ************************************************************************ -->
+
+        <!-- ***************************************** AQUÍ EMPIEZA MASTER_DATOS ********************************************************************* -->
+        <!-- Función que se llama después de cada fila para realizar los insert/updates a las tablas -->
+
+        <function name='master_datos'>
+           <args>
+                <arg name='p_cif'/>
+                <arg name='p_fecha'/>
+                <arg name='p_codigo'/>
+                <arg name='p_cant'/>
+                <arg name='p_precio'/>
+                <arg name='p_dtoimp'/>
+                <arg name='p_imptot'/>
+                <arg name='p_seqno'/>
+                <arg name='p_file_name'/>
+            </args>
+            
+            <body>
+                <select prefix='m_'>
+                    <columns>COUNT(*) <alias name='cont'/>,cabid </columns>
+                    <from table='@alm_carga_fich'/>
+                    <where>@alm_carga_fich.cif=<p_cif/></where>
+                    <group>2</group>
+                </select>
+                
+                <if>
+                    <expr>
+                        <or>
+                            <eq><m_cont/><null/></eq>
+                            <eq><m_cont/><number>0</number></eq>
+                        </or>
+                    </expr>
+                    <then>
+                        
+                        <crea_padre_hija>
+                            <m_cabid/>
+                            <p_fecha/>
+                            <p_cif/>
+                            <p_codigo/>
+                            <p_cant/>
+                            <p_precio/>
+                            <p_dtoimp/>
+                            <p_imptot/>
+                            <p_seqno/>
+                            <p_file_name/>
+                        </crea_padre_hija>
+                        
+                    </then>
+                    <else>
+                        
+                        <crea_hija>
+                            <m_cabid/>
+                            <p_fecha/>
+                            <p_codigo/>
+                            <p_cant/>
+                            <p_precio/>
+                            <p_dtoimp/>
+                            <p_imptot/>
+                        </crea_hija>
+                        
+                    </else>
+                </if>
+            
+            </body>
+
+        </function>
+        
+        <!-- ***************************************** AQUÍ ACABA MASTER_DATOS *********************************************************************** -->
+        <if>
+            <expr><eq><p_event/><string>D</string></eq></expr>
+            <then>
+                <return/>
+            </then>
+        </if>
+        
+        <!-- variables genericas -->
+        <set name='m_user'><system.user.getCode/></set>
+        <set name='m_date'><date.current /></set>
+        <!-- siempre estamos en la hoja primera -->
+        <set name='i'><number>0</number></set>
+        
+        <!-- Se obtienen los datos  de los ficheros cargados -->
+        <select prefix='m_'>
+            <columns>
+                seqno, file_name, file_data, file_type, file_size
+            </columns>
+            <from table='alm_carga_fich'/>
+            <where>
+                rowid=<p_rowid/>
+            </where>
+        </select>    
+        
+        <!-- Preparamos el fichero para leer -->
+        <file.out.open id='out2'>
+            <file name='file_wb_src' type='temp'/>
+        </file.out.open>
+        <file.out.write id='out2'>
+            <m_file_data />
+        </file.out.write>
+        <file.out.close id='out2' />
+
+        <!-- Control de duplicados por dcrc -->
+        <select prefix='m_'>
+            <columns>COUNT(*) <alias name='cont' /></columns>
+            <from table='alm_carga_fich' />
+            <where>file_name = <m_file_name/></where>
+        </select>
+
+        <if>
+            <expr><gt><m_cont/><number>1</number></gt></expr>
+            <then>
+                <exception><string>El fichero <m_file_name/>, con este nombre ya ha sido cargado anteriormente</string></exception>
+            </then>
+        </if>
+
+        <!-- Solo si puedo tratar el excel, continuo -->
+        <try>
+            <body>
+                <set name='wb_src'>
+                    <excel.Workbook 
+                        type='xlsx' 
+                        stream='false'
+                        stream-window-size='100'
+                        encoding='ISO-8859-1'
+                        >
+                        <file name='file_wb_src'  type='temp' />
+                        <!-- m_file_data / -->
+                    </excel.Workbook>
+                </set>
+            </body>
+            <catch>
+                <!-- Mensaje a reportar -->
+                 <exception><string>Tipo de fichero [<m_file_type/>] no soportado.</string></exception>
+            </catch>
+        </try>
+        
+        <!-- Vtable donde mapear las columnas a insertar según tabla. -->
+
+        <!-- De esta consulta obtenemos el nombre de la tabla, las columnas, el nº de columnas y el tipo de las columnas de clientes-->
+        <vtable name='v_maptabla'>
+            <select>
+                <columns>
+                    systables.tabname, syscolumns.colname, syscolumns.colno, syscolumns.coltype
+                </columns>
+                <from table='systables'>
+                    <join table='syscolumns'>
+                        <on>systables.tabid=syscolumns.tabid </on>
+                    </join>
+                </from>
+                <where>
+                    systables.tabname='alm_fich_err'
+                </where>
+            </select>
+        </vtable>
+        
+        <!-- Obtenemos la hoja de trabajo en la que estamos-->
+        <set name='hoja_src'>
+            <excel.Workbook.getSheetAt index='#i'>
+                <wb_src/>
+            </excel.Workbook.getSheetAt>
+        </set>
+        
+        <!-- obtener el maximo de columnas -->
+        <set name='m_maxcol'><excel.Sheet.getMaxColumn><hoja_src/></excel.Sheet.getMaxColumn></set>
+        <!-- obtener el maximo de filas -->
+        <set name='m_maxrow'><excel.Sheet.getMaxRow><hoja_src /></excel.Sheet.getMaxRow></set>
+        <!-- El total de columnas que debe tener el fichero (sin contar los datos de control,serial e identificador de fichero que estos no vienen en el excel)-->
+        <set name='totcol'><number>7</number></set>
+        <!-- Compruebo si el total de columnas del excel coincide con el de la tabla, si no es así mostramos error -->
+        <set name='coldif'><sub><totcol/><m_maxcol/></sub></set>
+        <if>
+            <expr><ne><coldif/><number>0</number></ne></expr>
+            <then>
+                <exception><string>En la hoja [<i/>] hay [<m_maxcol/>] columnas y debe tener [<totcol/>]</string></exception>
+            </then>
+        </if>
+        
+        <table name='@alm_carga_fich' temp='yes'>
+            <column name='cif' type='char' size='9'/>
+            <column name='cabid' type='integer' />
+        </table>
+       
+        <!-- Resto 1 al total de columnas porque empieza en 0 a contar no en 1 -->
+        <set name='m_maxcol'><sub><m_maxcol/>1</sub></set>                
+        <!-- Recorro las filas menos la primera que es cabecera -->
+        <for name='f' start='1' end='#m_maxrow'>                
+            <do>                        
+                <!-- Obtengo la fila de trabajo -->
+                <try>
+                    <body>
+                        <set name='m_row_src'>
+                            <excel.Sheet.getRow row='#f'>
+                                <hoja_src/>
+                            </excel.Sheet.getRow>
+                        </set>
+                    </body>
+                    <catch>
+                        <exception><string>Fila: [<f/>] Hoja: [<i/>] . Max filas [<m_maxrow/>]  <error.message/></string></exception>
+                    </catch>
+                </try>
+                <!-- Como las 3 primeras columnas de la tabla alm_fich_err son un cabid,el id del fichero y mensaje de error de la fila, comenzamos en la 4 a obtener los datos de la v_maptabla-->
+                <set name='m_col'><number>4</number></set>
+                
+                 <!-- Recorro las columnas por cada fila y obtengo los valores para cada columna -->
+                <for name='col' start='0' end='#m_maxcol'>
+                    <do>
+					    <!-- Obtengo el valor de la celda en la que me encuentro -->
+                        <set name='value'><excel.Row.getCell col='#col'>
+                            <m_row_src />
+                        </excel.Row.getCell></set>
+                        <!-- Obtengo los datos de la columna que estoy recorriendo -->
+                        <set name='v_linea'>
+                            <vtable.filter name='v_maptabla'>
+                                <column name='colno' regexp='#m_col' />
+                            </vtable.filter>
+                        </set>
+
+                        <!-- Obtengo nombre de la tabla para preparar el insert, si es la columna 0, alm_maestro_clientes, sino, alm_alpargatasl -->
+                        <set name='m_tabla'>
+                            <string>col</string>
+                        </set>
+                        <!-- Obtengo nombre de la columna para preparar el insert  -->
+                        <set name='m_columna'>
+                            <vtable.elementAt name='v_linea' row='0' column='colname' />
+                        </set>
+                        <!-- Obtengo tipo de la columna para preparar el insert  -->
+                        <set name='m_tipo'>
+                            <vtable.elementAt name='v_linea' row='0' column='coltype' />
+                        </set>
+
+                        <!-- Definición de la variable para para su utilización    -->
+                        <!-- en el insert prefix final                             -->
+                        <set name='vbl_insert_name'>
+                            <string><m_tabla /><string>_</string><m_columna /></string>
+                        </set>
+
+                        <!-- Obtengo la celda de trabajo -->
+                        
+                        <set name='m_cell_src'>
+                            <excel.Row.getCell col='#col'>
+                                <m_row_src />
+                            </excel.Row.getCell>
+                        </set>
+                        <try>
+                            <body>
+                                <!-- Obtengo el valor de la celda de trabajo -->
+                                <set name='cell_value'>
+                                    <excel.Cell.getCellValue>
+                                        <m_cell_src/>                                        
+                                    </excel.Cell.getCellValue>
+                                </set>
+                                <!-- Obtengo el tipo de la celda -->
+                                <set name='cell_type'>                                            
+                                    <excel.Cell.getCellType>
+                                        <m_cell_src/>
+                                    </excel.Cell.getCellType>                                                
+                                </set>
+                            </body>
+                            <catch>
+                                <set name='fila'><add><f/><number>1</number></add></set>
+                                <exception><string>Hoja <i/>;  Col <col/>; Fila <fila/>; <error.message/></string></exception>
+                            </catch>
+                            
+                        </try>
+                        <!-- Justo aquí llamaríamos al script que tendría la función esta dentro de trat_tipo_datos + valida_datos (por ejemplo), que es la que haría la validación y si está mal, cambia mensaje error por switch -->
+                        <!-- Llamamos a funcion que formatea el valor a lo correcto para cada columna -->
+                        <set name='#vbl_insert_name'>
+                            <trat_tipo_datos>
+                                <m_tipo/>        <!-- Tipo de columna -->
+                                <cell_value/>    <!-- el valor d ela celda -->
+                                <f/>             <!-- Fila en la que estamos -->
+                                <col/>          <!-- columna que tratamos -->
+                                <i/>             <!-- Hoja que estamos recorriendo del fichero -->
+                                <cell_type/>     <!-- Tipo de la celda -->                                        
+                            </trat_tipo_datos>
+                        </set>
+                        
+                        <set name='m_col'><add><m_col/><number>1</number></add></set>
+                    </do>
+                </for>
+                <!-- Una vez obtenidos los valores de la fila, insertamos en la tabla correspondiente-->
+                <master_datos>
+                    <col_cif/>
+                    <col_fecha/>
+                    <col_codigo/>
+                    <col_cant/>
+                    <col_precio/>
+                    <col_dtoimp/>
+                    <col_imptot/>
+                    <m_seqno/>
+                    <m_file_name/>
+                </master_datos>
+            </do>
+        </for>
+
+        <foreach>
+            <select prefix='m3_'>
+                <columns>cabid</columns>
+                <from table='@alm_carga_fich'/>
+            </select>
+            <do>
+                <call name='alm_update_imp'>
+                    <m3_cabid/>
+                </call>
+            </do>
+        </foreach>
+
+    </body>
+</xsql-script>

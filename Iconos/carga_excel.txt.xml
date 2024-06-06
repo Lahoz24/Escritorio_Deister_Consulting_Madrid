@@ -1,0 +1,537 @@
+<xsql-script name='tm_cargafich'>
+    <args>
+        <arg name='p_event' type='string'/>
+        <arg name='p_rowid' type='auto'/>
+    </args>
+    <body>
+        
+        <!-- debug mailto='jmartinh'/ -->
+        <!-- Función que trata los tipos de datos para formatearlos si fuese necesario -->
+        <function name='trat_tipo_datos'>
+            <args>
+                <arg name='p_tipo' />       <!-- Tipo de columna SERIAL = 262; Tipo CHAR = 0; tipo INT = 2; tipo DATE = 7; Tipo DECIMAL =5 -->
+                <arg name='p_value' />      <!-- el valor d ela celda -->
+                <arg name='f' />            <!-- Fila en la que estamos -->
+                <arg name='c' />            <!-- columna que tratamos -->
+                <arg name='p_hoja'  />      <!-- Tipo de fichero (F)acturacion ó (C)onsumo -->
+                <arg name='p_celltype' />     <!-- Tipo de la celda del excel -->
+            </args>
+            <body>
+                
+                <!-- Según el tipo de columna trataremos el dato de una forma u otra -->
+                <!-- tipos de columnas para informix (Cambian en funcion de si los campos son requeridos o no. En nuestro caso no son requeridos ninguno) -->
+                <!-- Tipo SERIAL = 262; Tipo CHAR = 0; tipo INT = 2; tipo DATE = 7; Tipo DECIMAL =5; Tipo VARCHAR=13 -->
+                <switch name='p_tipo'  regexp='true'>
+                    <!-- tipo char y varchar-->
+                    <case value='0|13'>
+                        <if>
+                            <expr><eq><p_celltype/><number>0</number></eq></expr>
+                            <then>
+                                <!-- ESto se hace porque los valores delas columnas que son nº de factura y son todo numeros no lo toma como texto que es el valor de la celda sino que lo toma como Double y lo está poniendo mal -->
+                                <!-- Obtenemos la posición de la letra "E" -->
+                                <set name='m_pose'><string.indexOf><p_value/><string>E</string></string.indexOf></set>
+                                <if>
+                                    <expr><ne><m_pose/><number>-1</number></ne></expr>
+                                    <then>
+                                        <!-- Substring desde la posición de la letra E +1 para que coja lo siguiente. -->                               
+                                        <set name='m_cadfin'> <string.substring><p_value/><add><m_pose/><number>1</number></add></string.substring></set>
+                                        <!-- Substring de la Cadena que hay desde la E hasta el final para multiplicarlo por 1 con tantos ceros por dentras como tenga el valor de la subcadena-->
+                                        <set name='m_mult'><string>1</string></set>
+                                        <for name='i' start='1' end='#m_cadfin'>
+                                            <do>
+                                                <set name='m_mult'><string><m_mult/>0</string></set>
+                                            </do>
+                                        </for>
+                                        <set name='m_mult'><number><m_mult/></number></set>
+                                        <!-- Obtengo la cadena principal -->
+                                        <set name='m_cadini'> <string.substring><p_value/><number>0</number><m_pose/></string.substring></set>
+                                        <set name='m_cadini'><number><m_cadini/></number></set>
+                                        <set name='m_value'><math.round><mul><m_cadini/><m_mult/></mul></math.round></set>
+                                    </then>
+                                    <else>
+                                        <set name='m_value'>
+                                             <string.trim2null>
+                                                <p_value/>
+                                            </string.trim2null>
+                                        </set>
+                                    </else>
+                                </if>
+                            </then>
+                            <else>
+                                <set name='m_value'>
+                                    <string.trim2null>
+                                        <p_value/>
+                                    </string.trim2null>
+                                </set>
+                            </else>
+                        </if>
+                    </case>
+                    <!-- Tipo integer -->
+                   <case value='2'>
+                        <!-- este valor puede venir a nulo por lo que en caso de ser null asignamos valor 0 -->
+                        <if>
+                            <expr><isnull><p_value/></isnull></expr>
+                            <then><set name='p_value'><number>0</number></set></then>
+                        </if>
+                        <!-- Si la hoja es la 2 (detalle, y estamos en la columna de telefono y/o extensión y el valor es 0 hacemos round a 0 para que vaya sin decimales) -->
+                        <if>
+                            <expr><eq><p_hoja/><number>2</number></eq></expr>
+                            <then>
+                                <if>
+                                    <expr>
+                                        <or>
+                                            <eq><c/><number>3</number></eq>
+                                            <eq><c/><number>4</number></eq>
+                                        </or>
+                                    </expr>
+                                    <then>
+                                        <if>
+                                            <expr><eq><p_value/><number>0.0</number></eq></expr>
+                                            <then>
+                                                <set name='m_value'>
+                                                    <math.round>
+                                                        <p_value/>
+                                                        <number>0</number>
+                                                    </math.round>
+                                                </set>
+                                            </then>
+                                            <else>
+                                                <set name='m_value'>
+                                                    <number>
+                                                        <p_value/>
+                                                    </number>
+                                                </set>
+                                            </else>
+                                        </if>
+                                    </then>
+                                    <else>                                        
+                                        <set name='m_value'>
+                                            <number>
+                                                <p_value/>
+                                            </number>
+                                        </set>                                    
+                                    </else>
+                                </if>
+                            </then>
+                            <else>
+                                 <set name='m_value'>
+                                    <number>
+                                        <p_value/>
+                                    </number>
+                                </set>
+                            </else>
+                        </if>
+                       
+                    </case>
+                    <!-- tipo date -->
+                    <case value='7'>
+                        <!-- variable para saber si viene como numero o no -->
+                        <set name='isnan'><number>0</number></set>
+                        <!-- Verificamos si tiene barras (15/10/2016) si así fuera las sutituimos por guiones.-->
+                        <set name='format_barr'><string.find><p_value/><string>/</string></string.find></set>
+                        <set name='format_gui'><string.find><p_value/><string>-</string></string.find></set>      
+                        <try>
+                            <body>
+                                <set name='valor'>
+                                    <number><p_value/></number>
+                                </set>
+                            </body>
+                            <catch>
+                                <set name='isnan'><number>1</number></set>
+                            </catch>
+                        </try>
+                        <if>
+                            <!-- tiene barras "/" -->
+                            <expr><ne><format_barr/><number>-1</number></ne></expr>
+                            <then>
+                                <set name='m_value'><string.replace><p_value/><string>/</string><string>-</string></string.replace></set>
+                            </then>
+                            <else-if>
+                                <!-- guiones no hacemos nada lo dejamos tal cual -->
+                                <expr><ne><format_gui/><number>-1</number></ne></expr>
+                                <then>
+                                    <set name='m_value'><p_value/></set>
+                                </then>
+                            </else-if>     
+                            <else-if>
+                                <expr><eq><isnan/><number>0</number></eq></expr>
+                                <then>
+                                    <set name='m_value'><select><columns>CAST(<p_value/> AS DATE) - 1 units day </columns><from table='cdataemp'/></select></set>
+                                </then>
+                            </else-if>
+                            <else>                     
+                                <!-- como las columnas empiezan en 0 le sumamos uno para que al verlo en el excel cuadre con la columna -->
+                                <set name='colu'><add><c/><number>1</number></add></set>
+                                <!-- si no son guiones o barras damos exception. Porque inicialmente no se trata. si pusieran nuevos formatos habria que tratarlos en este bloque. -->
+                                <exception><string>El formato de la fecha en la fila [<f/>] columna[<colu/>] no es correcto en la hoja <p_hoja/>.</string></exception>
+                            </else>
+                        </if>
+                    </case>
+                    <!-- tipo decimal -->
+                    <case value='5'>
+                        
+                        <!-- este valor puede venir a nulo por lo que en caso de ser null asignamos valor 0 -->
+                        <if>
+                            <expr><isnull><p_value/></isnull></expr>
+                            <then><set name='p_value'><number>0</number></set></then>
+                        </if>
+                        <!-- Los decimales vienen en formato de miles, es decir, 1.000,02 . Esto hay que convertirlo en 1000.02 -->
+                        <!-- En la tabla tm_detall las 4 ultimas columnas son tipo moneda, en principio no da problemas pero si los diese habría que tratarlo aquí -->
+                        <!-- reemplazamos puntos por nada 1.000,02 -> 1000,02 -->
+                        <set name='format_mil'><string.find><p_value/><string>.</string></string.find></set>
+                        <set name='format_dec'><string.find><p_value/><string>,</string></string.find></set>   
+                        
+                        <if>
+                            <!-- Si format_mil es distinto de -1 quiere decir que lo ha encontrado -->
+                            <expr><ne><format_mil/><number>-1</number></ne></expr>
+                            <then>  
+                                <!-- comprobamos tambien si ha encontrado format_dec -->
+                                <if>    
+                                    <expr><ne><format_dec/><number>-1</number></ne></expr>
+                                    <then> 
+                        
+                                        <!-- reemplazamos punto por nada, y coma por punto -->
+                                        <set name='numformat'><string.replace><p_value/><string>.</string><string/></string.replace></set>  
+                        
+                                        <!-- reemplazamos coma por punto y redondeamos a 2 decimales 1000,02 -> 1000.02-->
+                                        <set name='numformat'><string.replace><numformat/><string>,</string><string>.</string></string.replace></set>                
+                        
+                                        <set name='m_value'><number><math.round><numformat/><number>2</number></math.round></number></set>
+                                    </then>
+                                    <else>
+                        
+                                        <!-- Hay format_mil pero no format_dec esto es porque no viene con formato de miles 1.000,02 sino 1000,02 entonces lo dejamos tal cual está-->
+                                        <set name='m_value'><number><math.round><p_value/><number>2</number></math.round></number></set>                
+                                    </else>
+                                </if>
+                            </then>
+                            <else>
+                        
+                                <set name='m_value'><number><math.round><p_value/><number>2</number></math.round></number></set>      
+                            </else>
+                        </if>
+                    </case>
+                    <case value='10'>
+                        <set name='m_value'><p_value/></set>
+                    </case>
+                </switch>
+                <return><m_value/></return>
+            </body>
+        </function>
+
+        <if>
+            <expr><eq><p_event/><string>D</string></eq></expr>
+            <then>
+                <return/>
+            </then>
+        </if>
+
+        <!-- variables genericas -->
+        <set name='m_user'><system.user.getCode/></set>
+        <set name='m_date'><date.current /></set>
+        
+        <!-- <select prefix='m_'>
+            <columns>
+               count (*) <alias name='activos'/>
+            </columns>
+            <from table='tm_cargafich'/>
+            <where>
+                estado='A' and 
+                tm_cargafich.rowid != <p_rowid/>
+            </where>
+        </select>        
+        <if>
+            <expr><gt><m_activos/><number>0</number></gt></expr>
+            <then>
+                <update table='tm_cargafich'>
+                    <column name='estado'><string>I</string></column>
+                    <where>estado='A' and tm_cargafich.rowid != <p_rowid/></where>
+                </update>
+            </then>
+        </if> -->
+        <!-- Se obtienen los datos  de los ficheros cargados, solo aquellos que estén activos. Solo puede haber por cada tipo F o C uno de estado (A)ctivo. -->
+        <select prefix='m_'>
+            <columns>
+                idfile, tipo,
+                file_name, file_data, file_type, file_rows, file_crc, anio, mes
+            </columns>
+            <from table='tm_cargafich'/>
+            <where>
+                rowid=<p_rowid/>
+            </where>
+        </select>    
+        
+        <!-- Preparamos el fichero para leer -->
+        <file.out.open id='out2'>
+            <file name='file_wb_src' type='temp'/>
+        </file.out.open>
+        <file.out.write id='out2'>
+            <m_file_data />
+        </file.out.write>
+        <file.out.close id='out2' />
+         <!--Fin Preparamos el fichero para leer -->
+
+        <!-- Control de duplicados por dcrc -->
+        <select prefix='m_'>
+            <columns>COUNT(*) <alias name='cont' /></columns>
+            <from table='tm_cargafich' />
+            <where>file_crc = <m_file_crc/></where>
+        </select>
+
+        <if>
+            <expr><gt><m_cont/><number>1</number></gt></expr>
+            <then>
+                <exception><string>El fichero <m_file_name/>, ya ha sido cargado anteriormente</string></exception>
+            </then>
+        </if>
+        <!-- validar que el tipo se corresponda con el fichero Si tipo F fichero xls si tipo C fichero csv sino es así error.-->
+        
+        <!-- Como la carga del fichero de consumo se ha realizado posterior a la generación de este proceso, comprobamos el tipo, si es C de consumo, llamamos a un proceso y finalizamos este script cuando acabe para finalizar todo -->
+        <if>
+            <expr><eq><m_tipo/><string>C</string></eq></expr>
+            <then>
+                <call name='tm_carga_consum'>
+                    <m_idfile/>
+                </call>
+                <return />
+            </then>
+        </if>
+        <!-- Inento obtener el excel -->
+        <try>
+            <body>
+                <!-- Solo si puedo tratar el excel, continuo -->
+                <set name='wb_src'>
+                    <excel.Workbook 
+                        type='xls' 
+                        stream='false'
+                        stream-window-size='100'
+                        encoding='ISO-8859-1'
+                        >
+                        <file name='file_wb_src'  type='temp' />
+                        <!-- m_file_data / -->
+                    </excel.Workbook>
+                </set>
+            </body>
+            <catch>
+                <!-- Mensaje a reportar -->
+                 <exception><string>Tipo de fichero [<m_file_type/>] no soportado.</string></exception>
+            </catch>
+        </try>
+
+        <!-- Verificamos el tipo (F)acturacion o (C)onsumo -->
+        <!-- Si tipo=F:  Obtenemos el total de hojas del excel. Si hay mas de 3 error. La cuenta de hojas empieza en 0-->
+        
+        <!-- obtenemos el total de hojas que tiene el fichero -->
+        <set name='m_numhoja'>
+            <excel.Workbook.getNumberOfSheets>
+                <wb_src/>
+            </excel.Workbook.getNumberOfSheets>
+        </set>
+
+        <!-- EL array de las hojas empieza en 0 por ello restamos uno para luego ir recorriendolas desde 0 hasta la ultima posicion que será la que restemos -->
+        <set name='m_hoja'><sub><m_numhoja/><number>1</number></sub></set>
+       
+
+        <!-- Recorremos el total de hojas. La variable "i" la iniciamos a 0 y esta vble la usaremos para ir hoja a hoja hasta que llegue al total de hojas obtenidas -->
+        <for name='i' start='0' end='#m_hoja'>
+            <do>
+                 <!-- Según la hoja en la que estemos insertaremos en una tabla u otra  
+                 
+                      Cuando: i = 0 ==> m_tabname = tm_envbanc;  i=1 ==> m_tablname=tm_resum;  i=2 ==> m_tabname=tm_detall;-->
+                <if>
+                    <expr><eq><i/><number>0</number></eq></expr>
+                    <then>
+                        <set name='m_tabname'><string>tm_envbanc</string></set>
+                        <!-- El total de columnas que debe tener el fichero (sin contar los datos de control,serial e identificador de fichero que estos no vienen en el excel)-->
+                        <set name='totcol'><number>6</number></set>
+                    </then>
+                    <else-if>
+                        <expr><eq><i/><number>1</number></eq></expr>
+                        <then>
+                            <set name='m_tabname'><string>tm_resum</string></set>
+                            <!-- El total de columnas que debe tener el fichero (sin contar los datos de control,serial e identificador de fichero que estos no vienen en el excel)-->
+                            <set name='totcol'><number>12</number></set>
+                        </then>
+                    </else-if>
+                    <else-if>
+                        <expr><eq><i/><number>2</number></eq></expr>
+                        <then>
+                            <set name='m_tabname'><string>tm_detall</string></set>
+                            <!-- El total de columnas que debe tener el fichero (sin contar los datos de control,serial e identificador de fichero que estos no vienen en el excel)-->
+                            <set name='totcol'><number>13</number></set>
+                        </then>
+                    </else-if>
+                             
+                </if>
+
+                <!-- Vtable donde mapear las columnas a insertar según tabla. -->
+                <!-- De esta consulta obtenemos el nombre de la tabla, las columnas, el nº de columnas y el tipo de las columnas -->
+                <vtable name='v_maptabla'>
+                    <select>
+                        <columns>
+                            systables.tabname, syscolumns.colname, syscolumns.colno, syscolumns.coltype
+                        </columns>
+                        <from table='systables'>
+                            <join table='syscolumns'>
+                                <on>systables.tabid=syscolumns.tabid </on>
+                            </join>
+                        </from>
+                        <where>
+                            systables.tabname=<m_tabname/>
+                        </where>
+                    </select>
+                </vtable>
+
+                <!-- Obtenemos la hoja de trabajo en la que estamos-->
+                <set name='hoja_src'>
+                    <excel.Workbook.getSheetAt index='#i'>
+                        <wb_src />
+                    </excel.Workbook.getSheetAt>
+                </set>
+
+                <!-- Obtenemos el total de columnas -->
+                <set name='v_maptabla_size'><vtable.size name='v_maptabla' /></set>
+
+                <!-- Inicializo variable con prefix para insertar en la tabla posteriormente -->
+                <set name='vbl_insprefix'><string><m_tabname/><string>_</string></string></set>  <!-- Este es el prefijo que utilizaremos posteriormente para realizar el insert por ejemplo <insert table='x' prefix='tabla_'/> -->
+                <set name='vbl_idfichero'><string><m_tabname/><string>_idfile</string></string></set>
+                <set name='vbl_mes'><string><m_tabname/><string>_mes</string></string></set>
+                <set name='vbl_anio'><string><m_tabname/><string>_anio</string></string></set>
+                <set name='vbl_user_created'><string><m_tabname/><string>_user_created</string></string></set>
+                <set name='vbl_date_created'><string><m_tabname/><string>_date_created</string></string></set>
+                <set name='vbl_user_updated'><string><m_tabname/><string>_user_updated</string></string></set>
+                <set name='vbl_date_updated'><string><m_tabname/><string>_date_updated</string></string></set>
+
+                <!-- Se da valor a las vbls -->
+                <set name='#vbl_idfichero'><m_idfile /></set>
+                <set name='#vbl_mes'><m_mes /></set>
+                <set name='#vbl_anio'><m_anio /></set>
+                <set name='#vbl_user_created'><m_user/></set>
+                <set name='#vbl_date_created'><m_date/></set>
+                <set name='#vbl_user_updated'><m_user/></set>
+                <set name='#vbl_date_updated'><m_date/></set>
+
+                <!--set name='nombrehoja'><excel.Workbook.getSheetName index='#m_hoja'><hoja_src/></excel.Workbook.getSheetName></set-->
+                <!-- obtenemos el total de columnas y si supera al total de columnas de la tabla a insertar damos un error -->
+                <set name='m_maxcol'><excel.Sheet.getMaxColumn><hoja_src /></excel.Sheet.getMaxColumn></set>
+                <!-- obtener el maximo de filas -->
+                <set name='m_maxrow'><excel.Sheet.getMaxRow><hoja_src /></excel.Sheet.getMaxRow></set>
+
+                <!-- Compruebo si el total de columnas del excel coincide con el de la tabla, si no es así mostramos error -->
+                <set name='coldif'><sub><totcol/><m_maxcol/></sub></set>
+                <if>
+                    <expr><ne><coldif/><number>0</number></ne></expr>
+                    <then>
+                        <exception><string>En la hoja [<i/>] hay [<m_maxcol/>] columnas y debe tener [<totcol/>]</string></exception>
+                    </then>
+                </if>
+
+                <!-- Resto 1 al total de columnas porque empieza en 0 a contar no en 1 -->
+                <set name='m_maxcol'><sub><m_maxcol/>1</sub></set>                
+                <!-- Recorro las filas menos la primera que es cabecera -->
+                <for name='f' start='1' end='#m_maxrow'>                
+                    <do>                        
+                        <!-- Obtengo la fila de trabajo -->
+                        <try>
+                            <body>
+                                <set name='m_row_src'>
+                                    <excel.Sheet.getRow row='#f'>
+                                        <hoja_src />
+                                    </excel.Sheet.getRow>
+                                </set>
+                            </body>
+                            <catch>
+                                <exception><string>Fila: [<f/>] Hoja: [<i/>] . Max fials [<m_maxrow/>]  <error.message/></string></exception>
+                            </catch>
+                        </try>
+                        <!-- Como las 4 primeras columnas de la tabla son un serial,el id del fichero, mes y año de carga comenzamos en la quinta a obtener los datos de la v_mptabla-->
+                        <set name='m_col'><number>5</number></set>
+                        
+                         <!-- REcorro las columnas por cada fila y obtengo los valores para cada columna -->
+                        <for name='col' start='0' end='#m_maxcol'>
+                            <do>
+							    <!-- Obtengo el valor de la celda en la que me encuentro -->
+                                <set name='value'><excel.Row.getCell col='#col'>
+                                    <m_row_src />
+                                </excel.Row.getCell></set>
+                                <!-- Obtengo los datos de la columna que estoy recorriendo -->
+                                <set name='v_linea'>
+                                    <vtable.filter name='v_maptabla'>
+                                        <column name='colno' regexp='#m_col' />
+                                    </vtable.filter>
+                                </set >
+
+                                <!-- Obtengo nombre de la tabla para preparar el insert    -->
+                                <set name='m_tabla'>
+                                    <vtable.elementAt name='v_linea' row='0' column='tabname' />
+                                </set>
+                                <!-- Obtengo nombre de la columna para preparar el insert  -->
+                                <set name='m_columna'>
+                                    <vtable.elementAt name='v_linea' row='0' column='colname' />
+                                </set>
+                                <!-- Obtengo tipo de la columna para preparar el insert  -->
+                                <set name='m_tipo'>
+                                    <vtable.elementAt name='v_linea' row='0' column='coltype' />
+                                </set>
+
+                                <!-- Definición de la variable para para su utilización    -->
+                                <!-- en el insert prefix final                             -->
+                                <set name='vbl_insert_name'>
+                                    <string><m_tabla /><string>_</string><m_columna /></string>
+                                </set>
+
+                                <!-- Obtengo la celda de trabajo -->
+                                
+                                <set name='m_cell_src'>
+                                    <excel.Row.getCell col='#col'>
+                                        <m_row_src />
+                                    </excel.Row.getCell>
+                                </set>
+                                <try>
+                                    <body>
+                                        <!-- Obtengo el valor de la celda de trabajo -->
+                                        <set name='cell_value'>
+                                            <excel.Cell.getCellValue>
+                                                <m_cell_src/>                                        
+                                            </excel.Cell.getCellValue>
+                                        </set>
+                                        <!-- Obtengo el tipo de la celda -->
+                                        <set name='cell_type'>                                            
+                                            <excel.Cell.getCellType>
+                                                <m_cell_src/>
+                                            </excel.Cell.getCellType>                                                
+                                        </set>
+                                    </body>
+                                    <catch>
+                                        <!-- hacemos calculos para que se pueda buscar en la hoja fila y columna correctos -->                                        
+                                        <set name='hoja'><add><i/><number>1</number></add></set>
+                                        <set name='fila'><add><f/><number>1</number></add></set>
+                                        <exception><string>Hoja <hoja/>;  Col <col/>; Fila <fila/>; <error.message/></string></exception>
+                                    </catch>
+                                    
+                                </try>
+
+                                <!-- Llamamos a funcion que formatea el valor a lo correcto para cda columna -->
+                                <set name='#vbl_insert_name'>
+                                    <trat_tipo_datos>
+                                        <m_tipo/>        <!-- Tipo de columna -->
+                                        <cell_value/>    <!-- el valor d ela celda -->
+                                        <f/>             <!-- Fila en la que estamos -->
+                                        <col />          <!-- columna que tratamos -->
+                                        <i/>             <!-- Hoja que estamos recorriendo del fichero -->
+                                        <cell_type/>     <!-- Tipo de la celda -->                                        
+                                    </trat_tipo_datos>
+                                </set>
+                                
+                                <set name='m_col'><add><m_col/><number>1</number></add></set>
+                            </do>
+                        </for>
+                        <!-- Una vez obtenidos los valores de la fila, insertamos en la tabla correspondiente-->
+                        
+                        <insert table='#m_tabname' prefix='#vbl_insprefix'/>
+                    </do>
+                </for>
+            </do>
+        </for>                        
+    </body>
+</xsql-script>

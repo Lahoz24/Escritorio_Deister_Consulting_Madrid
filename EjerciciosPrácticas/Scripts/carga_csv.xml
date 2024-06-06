@@ -1,0 +1,174 @@
+<xsql-script name='tm_carga_consum'>
+	<args>
+		<arg name='p_idfile'/>
+	</args>
+	<body>
+         <function name='f_addLine'>
+            <args>
+                <arg name='p_idfile' type='integer'/>
+                <arg name='p_line'  type='string'/>
+                <arg name='p_tabla' type='string'/>                                
+                <arg name='p_conta' type='integer' />
+                <arg name='p_anio'  type='integer' />
+                <arg name='p_mes'  type='integer' />
+            </args>
+            <body>
+
+                <!-- Todas las líneas de todos los ficheros, tenemos que quitar el string " 0:00:00", -->
+                <!-- y tambien sustituir el caracter "/" por el "-".                                   -->
+                
+
+                <!-- ============================================================== -->
+                <!-- Los campos estaran separados por ";"                           -->
+                <!-- ============================================================== -->
+                <set name='arr'>
+                     <string.split pattern=';'>
+                         <p_line/>
+                     </string.split>
+                </set>
+                 
+                <!-- Validamos el tamaño del fichero -->
+                <if>
+                    <expr><lt><array.size name='arr' />13</lt></expr>
+                    <then>
+                        <exception><string>
+                            Revise el Formato del archivo consumo: Es incorrecto. <string.nl/>
+                            Datos de la línea numero <p_conta/>: size <array.size name='arr' /> <string.nl/>
+                            <p_line/>
+                        </string></exception>
+                        
+                    </then>
+                </if>
+                
+           
+                                
+                <if>
+                    <expr><eq><string.length><array.get name='arr'>12</array.get></string.length>0</eq></expr>
+                    <then>
+                        <set name='duracc' type='decimal'>0</set>
+                    </then>
+                    <else>
+                        <set name='duracc' type='decimal'><number.userParse><array.get name='arr'>12</array.get></number.userParse></set>
+                    </else>
+                </if>
+                <if> 
+                    <expr>
+                        <gt><array.size name='arr' /><number>13</number></gt>
+                    </expr>
+                    <then>
+                        <if>
+                            <expr><eq><string.length><array.get name='arr'>13</array.get></string.length>0</eq></expr>
+                            <then>
+                                <set name='voldat' type='string'>0</set>
+                            </then>
+                            <else>
+                                <set name='voldat' type='string'><array.get name='arr'>13</array.get></set>
+                            </else>
+                        </if>
+                    </then>
+                    <else>
+                        <set name='voldat' type='string'>0</set>                        
+                    </else>
+                </if>
+                 <if> 
+                    <expr>
+                        <gt><array.size name='arr' /><number>14</number></gt>
+                    </expr> 
+                    <then>
+                        <if>
+                            <expr><eq><string.length><array.get name='arr'>14</array.get></string.length>0</eq></expr>
+                            <then>
+                                <set name='tipfac' type='string'>seg</set>
+                            </then>
+                            <else>
+                                <set name='tipfac' type='string'><array.get name='arr'>14</array.get></set>
+                            </else>
+                        </if>
+                    </then>
+                    <else>                        
+                        <set name='tipfac' type='string'>seg</set>
+                    </else>
+                </if>
+                <!-- Insertamos en la tabla correspondiente los valores leidos de cada línea del fichero -->
+                <insert table='tm_consum'>
+                    <column name='seqno'  ><number>0</number></column>
+                    <column name='idfile' ><p_idfile/></column>
+                    <column name='anio' ><p_anio/></column>
+                    <column name='mes' ><p_mes/></column>
+                    <column name='ciclo'  ><array.get name='arr'>0</array.get></column>
+                    <column name='numfac' ><array.get name='arr'>1</array.get></column>
+                    <column name='cuenta' ><array.get name='arr'>2</array.get></column>
+                    <column name='catego' ><array.get name='arr'>3</array.get></column>
+                    <column name='tabla'  ><array.get name='arr'>4</array.get></column>
+                    <column name='tlfono' ><array.get name='arr'>5</array.get></column>
+                    <column name='extens' ><array.get name='arr'>6</array.get></column>
+                    <column name='fecha'  ><array.get name='arr'>7</array.get></column>
+                    <column name='hora'   ><array.get name='arr'>8</array.get></column>
+                    <column name='numrec' ><array.get name='arr'>9</array.get></column>
+                    <column name='tipo'   ><array.get name='arr'>10</array.get></column>
+                    <column name='destino'><array.get name='arr'>11</array.get></column>
+                    <column name='duracc' ><duracc/></column>
+                    <column name='voldat' ><voldat/></column>
+                    <column name='tipfac' ><tipfac/></column>
+                    <column name='user_created'><system.user.getCode/></column>
+                    <column name='date_created'><date.current/></column>
+                    <column name='user_updated'><system.user.getCode/></column>
+                    <column name='date_updated'><date.current/></column>
+                </insert>
+                
+            </body>
+        </function>
+        
+		<!-- =================================================================== -->
+        <!-- Inicio de lectura y carga del fichero de facturación			     -->
+        <!-- =================================================================== -->
+        <select prefix='m_'>
+            <columns>tipo,file_name <alias name='name' />,file_data <alias name='file'/>, idfile,anio,mes</columns>
+            <from table='tm_cargafich' />
+            <where>
+                tm_cargafich.idfile = <p_idfile/>
+            </where>
+        </select>
+        
+        <!-- Compruebo si existe fichero de facturación para la fecha y mes que se ha introducido el de consumo -->
+        <!-- =================================================================== -->
+        <!-- Conversion del fichero byte a string                                -->
+        <!-- =================================================================== -->
+        <set name='lnr'>
+            <string.toArray>
+                <byte.toString encoding='iso-8859-1'>
+                    <m_file />
+                </byte.toString>
+            </string.toArray>
+        </set>
+        
+        <array.removeFirst name='lnr' />
+        <!-- contador de líneas para mostrar que línea falla cuando de error -->
+        <set name='conta'><number>1</number></set>
+        <!-- Mientras siga habiendo líneas en el fichero, las seguimos tratando -->
+        <while>
+            <expr>
+                <array.size><lnr/></array.size>
+            </expr>
+            <do>
+                <try>
+                    <body>
+                        <set name='m_line'><array.remove name='lnr'>0</array.remove></set>
+                    </body>
+                    <catch>
+                        <exception><string><error.message/> - <m_line/></string></exception>
+                    </catch>
+                </try>
+                <f_addLine>
+                     <m_idfile />
+                     <m_line />
+                     <m_name />                 
+                     <conta />
+                     <m_anio/>
+                     <m_mes/>
+                </f_addLine>
+                <set name='conta'><add><conta/><number>1</number></add></set>
+            </do>
+        </while>
+	</body>
+</xsql-script>

@@ -1,0 +1,47 @@
+<xsql-script>
+    <body>
+        <foreach>
+            <select prefix='m_'>
+                <columns>
+                    systables.tabname, syscolumns.colname, syscolumns.colno, syscolumns.coltype
+                </columns>
+                <from table='systables'>
+                    <join table='syscolumns'>
+                        <on>systables.tabid=syscolumns.tabid </on>
+                    </join>
+                </from>
+                <where>
+                    systables.tabname='alm_fich_err'
+                </where>
+            </select>
+            <do>
+
+                <!-- Obtengo nombre de la tabla para preparar el insert    -->
+                <set name='m_tabla'>
+                    <m_tabname/>
+                </set>
+                <println><m_tabname/></println>
+                <!-- Obtengo nombre de la columna para preparar el insert  -->
+                <set name='m_columna'>
+                    <m_colname/>
+                </set>
+                <println><m_colname/></println>
+                <!-- Obtengo tipo de la columna para preparar el insert  -->
+                <set name='m_tipo'>
+                    <m_coltype/>
+                </set>
+                <println><m_coltype/></println>
+
+                <!-- Definición de la variable para para su utilización    -->
+                <!-- en el insert prefix final                             -->
+                <set name='vbl_insert_name'>
+                    <string><m_tabla/><string>_</string><m_columna /></string>
+                </set>
+                <println><vbl_insert_name/></println>
+                <set name='#vbl_insert_name'><m_coltype/></set>
+                <println><get name='vbl_insert_name'/></println>
+                <println><string>----------------------------------</string></println>
+            </do>
+        </foreach>
+    </body>
+</xsql-script>

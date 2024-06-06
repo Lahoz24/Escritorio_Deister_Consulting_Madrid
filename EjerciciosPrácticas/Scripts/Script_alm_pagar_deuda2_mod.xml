@@ -1,0 +1,250 @@
+<xsql-script name='alm_pagar_deuda2'>
+    <args>
+        <arg name='p_imppag'   like='alm_maestro_clientes.imppag'   /> 
+    </args>
+    <body>
+        
+        <!--VARIABLE CON LA PETICIÓN DEL USUARIO-->
+        
+        <set name='v_pagar_deuda'>
+            <http.request.sqltable.getSelected code='TICKETS_PENDIENTES'/>
+        </set>
+        
+        <!--CONTROL EN EL CASO DE INSERTAR LOS PARÁMETROS NULOS O NO VÁLIDOS-->
+        
+        <if>
+            <expr>
+                <or>
+                    <isnull><p_imppag/></isnull>
+                    <le><p_imppag/><number>0</number></le>
+                </or>
+            </expr>
+            <then>
+                <exception><string>Inserta un importe válido</string></exception>
+            </then>
+        </if>
+        
+        <if>
+            <expr>
+                <or>
+                    <isnull><v_pagar_deuda/></isnull>
+                    <eq><vtable.size name='v_pagar_deuda'/><number>0</number></eq>
+                </or>
+            </expr>
+            <then>
+                <exception><string>Ninguna fila seleccionada.</string></exception>
+            </then>
+        </if>
+        
+        
+        <!--VARIABLES DINÁMICAS-->
+        
+        <set name='m_imppag_actual'><p_imppag/></set>
+
+
+        <!--ORDENACIÓN DE LA VTABLE POR FECFIN-->
+        
+        <vtable.sort name='v_pagar_deuda' columns='fecfin'/>
+        
+          
+        <!--RECORRIDO SECUENCIAL DE LA VTABLE CREADA-->
+        
+        <foreach>
+            <in prefix='m2_'>
+                <v_pagar_deuda/>
+            </in>
+            
+            <!--EXPLICACIÓN BEFORE/AFTER-GROUP (FLUJO: CODCLI=1? -> BEFORE-GROUP -> DO FOREACH -> AFTER-GROUP -> CODCLI=2? ...) -->
+            
+            <before-group of='m2_codcli'>
+				                
+				<!--RECOGIDA DE DATOS DEL CLIENTE-->
+                
+                <select prefix='m_'>
+                    <columns>NVL(alm_maestro_clientes.impdeu,0) <alias name='impdeu'/>,NVL(alm_maestro_clientes.imppag,0) <alias name='imppag'/>,NVL(alm_maestro_clientes.impdev,0) <alias name='impdev'/></columns>
+                    <from table='alm_maestro_clientes'/>
+                    <where>alm_maestro_clientes.codigo=<m2_codcli/></where>
+                </select>
+                
+                <set name='m_impdeu_actual'><m_impdeu/></set>
+                
+			</before-group>
+			<after-group of='m2_codcli'>
+			    
+			    <!--CÁLCULO DEL IMPORTE PAGADO TOTAL Y DEL IMPORTE DEVUELTO-->
+                
+                <set name='m_imppag_cliente'><add><m_imppag/><p_imppag/></add></set>
+                <set name='m_impdev_cliente'><add><m_impdev/><m_imppag_actual/></add></set>
+                
+                <!--COMPRUEBO SI SIGUE HABIENDO IMPORTE DEUDA EN EL CLIENTE-->
+                
+                <!--SI EL IMPORTE DEUDA ES MAYOR QUE 0-->
+                
+                <if>
+                    <expr>
+                        <gt><m_impdeu_actual/><number>0</number></gt>
+                    </expr>
+                    <then>
+                        
+                        <update table='alm_maestro_clientes'>
+                            <column name='impdev'><m_impdev_cliente/></column>
+                            <column name='imppag'><m_imppag_cliente/></column>
+                            <column name='impdeu'><m_impdeu_actual/></column>
+                            <where>alm_maestro_clientes.codigo = <m2_codcli/></where> 
+                        </update>
+                        
+                    </then>
+                </if>
+                
+                <!--SI EL IMPORTE DEUDA ES IGUAL QUE 0-->
+                
+                <if>
+                    <expr>
+                        <eq><m_impdeu_actual/><number>0</number></eq>
+                    </expr>
+                    <then>
+                        
+                        <update table='alm_maestro_clientes'>
+                            <column name='impdev'><m_impdev_cliente/></column>
+                            <column name='imppag'><m_imppag_cliente/></column>
+                            <column name='impdeu'><number>0</number></column>
+                            <column name='deuda'><number>0</number></column>
+                            <where>alm_maestro_clientes.codigo = <m2_codcli/></where> 
+                        </update>
+                        
+                    </then>
+                </if>
+                
+                <!--SI EL IMPORTE DEUDA ES MENOR QUE 0-->
+                
+                <if>
+                    <expr>
+                        <lt><m_impdeu_actual/><number>0</number></lt>
+                    </expr>
+                    <then>
+                        <set name='m_impdev_cliente_neg'><add><m_impdev/><eval.neg><m_impdeu_actual/></eval.neg></add></set>
+                        
+                        <update table='alm_maestro_clientes'>
+                            <column name='impdev'><m_impdev_cliente_neg/></column> 
+                            <column name='imppag'><m_imppag_cliente/></column>
+                            <column name='impdeu'><number>0</number></column>
+                            <column name='deuda'><number>0</number></column>
+                            <where>alm_maestro_clientes.codigo = <m2_codcli/></where> 
+                        </update>
+                        
+                    </then>
+                </if>
+                
+                <set name='m_imppag_cliente'><null/></set>
+                <set name='m_impdev_cliente'><null/></set>
+                <set name='m_impdev_cliente_neg'><null/></set>
+
+                
+			</after-group>
+			
+            <do>
+                
+                <!--SI EL IMPORTE PAGADO ES MAYOR QUE LA DEUDA RESTANTE DEL TICKET -->
+                
+                <if>
+                    <expr><gt><m_imppag_actual/><m2_dif/></gt></expr>
+                    <then>
+                        
+                        <!--SI EL ESTADO DEL PADRE ESTÁ EN PAGO PARCIAL, RESTA A LA DEUDA TOTAL LA DEUDA DEL TICKET -->
+                        
+                        <if>
+                            <expr><eq><m2_estado/><string>L</string></eq></expr>
+                            <then>
+                                <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m2_dif/></sub></set>
+                            </then>
+                        </if>
+                        
+                        <set name='m_imppag_actual'><sub><m_imppag_actual/><m2_dif/></sub></set>
+                        
+                        
+                        <update table='alm_alpargatash'>
+                            <column name='estado'><string>P</string></column>
+                            <column name='caberr'><null/></column>
+                            <column name='imppag'><m2_imptot/></column>
+                            <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                        <update table='alm_alpargatasl'>
+                            <column name='estado'><string>P</string></column>
+                            <where>alm_alpargatasl.cabid = <m2_cabid/></where> 
+                        </update>
+                        
+                    </then>
+                    
+                    <!--SI EL IMPORTE PAGADO ES IGUAL QUE LA DEUDA RESTANTE DEL TICKET-->
+                
+                    <else-if>
+                        <expr><eq><m_imppag_actual/><m2_dif/></eq></expr>
+                        <then>
+                            
+                            <!--SI EL ESTADO DEL PADRE ESTÁ EN PAGO PARCIAL, RESTA A LA DEUDA TOTAL LA DEUDA DEL TICKET -->
+                            
+                            <if>
+                                <expr><eq><m2_estado/><string>L</string></eq></expr>
+                                <then>
+                                    <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m2_dif/></sub></set>
+                                </then>
+                            </if>
+                            
+                            <set name='m_imppag_actual'><number>0</number></set>
+                            
+                            
+                            <update table='alm_alpargatash'>
+                                <column name='estado'><string>P</string></column>
+                                <column name='caberr'><null/></column>
+                                <column name='imppag'><m2_imptot/></column>
+                                <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                            </update>
+                            
+                            <update table='alm_alpargatasl'>
+                                <column name='estado'><string>P</string></column>
+                                <where>alm_alpargatasl.cabid = <m2_cabid/></where> 
+                            </update>
+                            
+                        </then>
+                    </else-if>
+                
+                    <!--SI EL IMPORTE PAGADO ES MENOR QUE LA DEUDA RESTANTE DEL TICKET-->
+                
+                    <else>
+                        <!--SI EL ESTADO DEL PADRE ESTÁ EN PAGO PARCIAL, RESTA A LA DEUDA TOTAL LA DEUDA DEL TICKET -->
+                        
+                        <if>
+                            <expr><eq><m2_estado/><string>L</string></eq></expr>
+                            <then>
+                                <set name='m_impdeu_actual'><sub><m_impdeu_actual/><m_imppag_actual/></sub></set>
+                            </then>
+                        </if>
+                        
+                        <set name='imppag_total'><add><m2_imppag/><m_imppag_actual/></add></set>
+                        <set name='m_imppag_actual'><number>0</number></set>
+
+                        <update table='alm_alpargatash'>
+                            <column name='imppag'><imppag_total/></column>
+                            <where>alm_alpargatash.cabid = <m2_cabid/></where> 
+                        </update>
+                            
+                    </else>
+                </if>
+                
+                <!--SI EL IMPORTE PAGADO RECALCULADO ES MENOR O IGUAL A 0, QUE SE SALGA DEL FOREACH -->
+                
+                <if>
+                    <expr>
+                        <le><m_imppag_actual/><number>0</number></le>
+                    </expr>
+                    <then>
+                        <foreach.continue/>
+                    </then>
+                </if>
+                
+            </do>
+        </foreach>
+        
+    </body>  
+</xsql-script>
