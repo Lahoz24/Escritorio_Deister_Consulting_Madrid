@@ -1,0 +1,85 @@
+<xsql-script>
+    <body>
+        <println><string>-------------------------------------------------------</string></println>
+        <foreach>
+            <select prefix='m2_'>
+                <columns>*</columns>
+                <from table='alm_fich_err'/>
+                <order>alm_fich_err.cif</order>
+            </select>
+
+            <before-group of='m2_cif'>
+                <select prefix='m2_'>
+                    <columns>alm_maestro_clientes.codigo <alias name='codcli'/></columns>
+                    <from table='alm_maestro_clientes'></from>
+                    <where>alm_maestro_clientes.cif = <m2_cif/></where>
+                </select>
+                <println><string>El cliente con cif: <m2_cif/> su codcli es: <m2_codcli/></string></println>
+                <println><string>-------------------------------------------------------</string></println>
+            </before-group>
+            
+            <after-group of='m2_cif'>
+                <println><string>-------------------------------------------------------</string></println>
+            </after-group>
+            <do>
+                <println><string>Procesamos una línea: <m2_cif/></string></println>
+                <println><string>Llamamos validaDatos con las siguientes variables:</string></println>
+                <println><string>-Ficid: <m2_ficid/></string></println>
+                <println><string>-Codcli: <m2_codcli/></string></println>
+                <println><string>-CIF: <m2_cif/></string></println>
+                <println><string>-Fecha: <m2_fecha/></string></println>
+                <println><string>-Código artículo: <m2_codigo/></string></println>
+                <println><string>-Cantidad: <m2_cant/></string></println>
+                <println><string>-Precio: <m2_precio/></string></println>
+                <println><string>-Descuento: <m2_dtoimp/></string></println>
+                <println><string>-Importe total: <m2_imptot/></string></println>
+
+                <!-- <set name='m_error'>
+                    <call name='alm_valida_datos'>
+                        <m2_ficid/>
+                        <m2_cif/>
+                        <m2_fecha/>
+                        <m2_codigo/>
+                        <m2_cant/>
+                        <m2_precio/>
+                        <m2_dtoimp/>
+                        <m2_imptot/>
+                    </call>                    
+                </set> 
+
+                <println><string.space/></println>
+                <println>El script valida datos devuelve: <m_error/></println>
+                <println><string>==============================</string></println> -->
+                <set name='m_error'><number>0</number></set>
+                <if>
+                    <expr><eq><m_error/><number>0</number></eq></expr>
+                    <then>
+                        <select prefix='m3_'>
+                            <columns>COUNT(*) <alias name='cont'/></columns>
+                            <from table='alm_alpargatash'/>
+                            <where>alm_alpargatash.codigo = <string><m2_codcli/> <m2_ficid/></string></where>
+                        </select>
+
+                        <if>
+                            <expr><eq><m3_cont/><number>0</number></eq></expr>
+                            <then>
+                                <println>Creo padre e hijo</println>
+                                <println><string>==============================</string></println>
+                            </then>
+                            <else>
+                                <println>Creo hijo</println>
+                                <println><string>==============================</string></println>
+                            </else>
+                        </if>
+                    </then>
+                    <else>
+                        <println>Salto línea</println>
+                        <foreach.continue/>
+                    </else>
+                </if>
+
+            </do>
+        </foreach>
+
+    </body>
+</xsql-script>

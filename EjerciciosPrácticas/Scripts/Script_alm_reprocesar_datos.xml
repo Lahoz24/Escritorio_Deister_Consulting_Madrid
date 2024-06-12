@@ -1,0 +1,270 @@
+<xsql-script name='alm_reprocesar_datos'>
+    <body>
+        <!-- ***************************************** AQUÍ EMPIEZA CREA_HIJAS *********************************************************************** -->
+        <!-- Función que se llama para crear registros alpargatasl y updatear fecini y fecfin del padre -->
+        
+        <function name='crea_hija'>
+            <args>
+                <arg name='p_cabid'/>
+                <arg name='p_fecha'/>
+                <arg name='p_codigo'/>
+                <arg name='p_cant'/>
+                <arg name='p_precio'/>
+                <arg name='p_dtoimp'/>
+                <arg name='p_imptot'/>
+            </args>
+            <body>
+                
+                <select prefix='alm_alpargatasl_'>
+                    <columns>alm_maestro_articulos.descri</columns>
+                    <from table='alm_maestro_articulos'/>
+                    <where>alm_maestro_articulos.codigo=<p_codigo/></where>
+                </select>
+                
+                <select prefix='alm_alpargatash_'>
+                    <columns>alm_alpargatash.fecini,alm_alpargatash.fecfin</columns>
+                    <from table='alm_alpargatash'/>
+                    <where>alm_alpargatash.cabid=<p_cabid/></where>
+                </select>
+                
+                
+                <set name='alm_alpargatasl_cabid'><p_cabid/></set>
+                <set name='alm_alpargatasl_fecha'><p_fecha/></set>
+                <set name='alm_alpargatasl_codigo'><p_codigo/></set>
+                <set name='alm_alpargatasl_cant'><number><p_cant/></number></set>
+                <set name='alm_alpargatasl_precio'><number><p_precio/></number></set>
+                <set name='alm_alpargatasl_import'><mul><alm_alpargatasl_cant/><alm_alpargatasl_precio/></mul></set>
+                <set name='alm_alpargatasl_dtoimp'><p_dtoimp/></set>
+                <set name='alm_alpargatasl_imptot'><p_imptot/></set>
+                <set name='alm_alpargatasl_estado'><string>A</string></set>
+                
+                
+                <!-- Updateo fecini y fecfin alpargatash  -->
+                
+                <if>
+                    <expr><lt><p_fecha/><alm_alpargatash_fecini/></lt></expr>
+                    <then>
+                        <set name="alm_alpargatash_fecini"><p_fecha/></set>
+                    </then>
+                    <else-if>
+                        <expr><gt><p_fecha/><alm_alpargatash_fecini/></gt></expr>
+                        <then>
+                            <set name="alm_alpargatash_fecfin"><p_fecha/></set>
+                        </then>
+                    </else-if>
+                </if>
+                
+                <update table='alm_alpargatash' prefix='alm_alpargatash_'>
+                    <where>alm_alpargatash.cabid=<p_cabid/></where>
+                </update>
+                
+                <!-- Inserto en alpargatasl -->
+                <insert table='alm_alpargatasl' prefix='alm_alpargatasl_'/>
+                
+            </body>
+        </function>
+        
+        <!-- ***************************************** AQUÍ ACABA CREA_HIJAS ************************************************************************* -->
+
+        <!-- ***************************************** AQUÍ EMPIEZA CREA_PADRES ********************************************************************** -->
+        <!-- Función que se llama para crear registros en alpargatash y alpargatasl -->
+        
+        <function name='crea_padre_hija'>
+            <args>
+                <arg name='p_cabid'/>
+                <arg name='p_fecha'/>
+                <arg name='p_cif'/>
+                <arg name='p_codigo'/>
+                <arg name='p_cant'/>
+                <arg name='p_precio'/>
+                <arg name='p_dtoimp'/>
+                <arg name='p_imptot'/>
+                <arg name='p_seqno'/>
+                <arg name='p_file_name'/>
+            </args>
+            <body>
+                
+                <select prefix='alm_'>
+                    <columns>alm_maestro_clientes.codigo <alias name='alpargatash_codcli'/></columns>
+                    <from table='alm_maestro_clientes'/>
+                    <where>alm_maestro_clientes.cif=<p_cif/></where>
+                </select>
+                
+                <set name='alm_alpargatash_codigo'><string><alm_alpargatash_codcli/> <p_seqno/></string></set>
+                <set name='alm_alpargatash_descri'><string>Importado desde <p_file_name/></string></set>                        
+                <set name='alm_alpargatash_estado'><string>A</string></set>
+                <set name='alm_alpargatash_imptot'><number>0</number></set>
+                
+                <!-- Variables voy a usar en padre y en hijas -->
+        
+                <set name='alm_alpargatash_fecini'><p_fecha/></set>
+                <set name='alm_alpargatash_fecfin'><p_fecha/></set>
+    
+                        
+                <!-- Inserto en alpargatash -->
+                <insert table='alm_alpargatash' prefix='alm_alpargatash_'/>
+                
+                <!-- Obtengo el cabid último insertado -->
+                <set name='m2_cabid'>
+                    <sqlca.serial/>
+                </set>   
+                
+                <!-- Guardo el cif y cabid en la tabla temporal -->
+                <insert table='@alm_carga_fich'>
+                    <column name='cif'><p_cif/></column>
+                    <column name='cabid'><m2_cabid/></column>
+                </insert>
+                
+                <!-- FUNCIÓN HIJA EMPIEZA -->
+                <crea_hija>
+                    <m2_cabid/>
+                    <p_fecha/>
+                    <p_codigo/>
+                    <p_cant/>
+                    <p_precio/>
+                    <p_dtoimp/>
+                    <p_imptot/>
+                </crea_hija>
+                
+            </body>
+        </function>                
+            
+        <!-- ***************************************** AQUÍ ACABA CREA_PADRES ************************************************************************ -->
+        
+        <!--VARIABLE CON LA PETICIÓN DEL USUARIO-->
+        
+        <set name='v_reprocesar_datos'>
+            <http.request.sqltable.getSelected code='REGISTROS_ERROR'/>
+        </set>
+        
+        <!--ORDENACIÓN DE LA VTABLE POR FECFIN-->
+        
+        <vtable.sort name='v_reprocesar_datos' columns='cif'/>
+        
+        <!--CREO TABLA TEMPORAL PARA POSTERIOR ACTUALIZACIÓN DE LOS IMPORT DE LOS PADRES-->
+        
+        <table name='@alm_carga_fich' temp='yes'>
+            <column name='cif' type='char' size='9'/>
+            <column name='cabid' type='integer' />
+        </table>
+        
+        <!--RECORRIDO SECUENCIAL DE LA VTABLE CREADA-->
+        
+        <foreach>
+            <in prefix='m_'>
+                <v_reprocesar_datos/>
+            </in>
+
+            <before-group of='m_cif'>
+                
+                <select prefix='m_'>
+                    <columns>alm_maestro_clientes.codigo <alias name='codcli'/></columns>
+                    <from table='alm_maestro_clientes'></from>
+                    <where>alm_maestro_clientes.cif = <m_cif/></where>
+                </select>
+                
+            </before-group>
+            
+            <do>
+
+                <set name='m_error'>
+                    <call name='alm_valida_datos'>
+                        <m_ficid/>
+                        <m_cif/>
+                        <m_fecha/>
+                        <m_codigo/>
+                        <m_cant/>
+                        <m_precio/>
+                        <m_dtoimp/>
+                        <m_imptot/>
+                    </call>                    
+                </set> 
+
+                <if>
+                    <expr><eq><m_error/><number>0</number></eq></expr>
+                    <then>
+                        
+                        <!-- BORRO LÍNEA DE FICHERO ERROR YA QUE SE INSERTA BIEN -->
+                        <delete table='alm_fich_err'>
+                           <where>alm_fich_err.cabid = <m_cabid/></where>
+                        </delete>
+                        
+                        <!-- SACO EL FILE_NAME QUE USARÉ AL LLAMAR AL CREAR PADRE O CREAR HIJO -->
+                        <select prefix='m_'>
+                            <columns>alm_carga_fich.file_name</columns>
+                            <from table='alm_carga_fich'/>
+                            <where>alm_carga_fich.seqno = <m_ficid/></where>
+                        </select>
+                        
+                        <!-- COMPRUEBO SI EXISTE PADRE CON EL NOMBRE DE ESTE FICHERO -->
+                        <select prefix='m2_'>
+                            <columns>COUNT(*) <alias name='cont'/></columns>
+                            <from table='alm_alpargatash'/>
+                            <where>alm_alpargatash.codigo = <string><m_codcli/><string.space/><m_ficid/></string></where>
+                        </select>
+
+                        <if>
+                            <expr><eq><m2_cont/><number>0</number></eq></expr>
+                            <then>
+                                
+                                <!-- INSERTO PADRE E HIJA -->
+                                <crea_padre_hija>
+                                    <m_cabid/>
+                                    <m_fecha/>
+                                    <m_cif/>
+                                    <m_codigo/>
+                                    <m_cant/>
+                                    <m_precio/>
+                                    <m_dtoimp/>
+                                    <m_imptot/>                                    
+                                    <m_ficid/>
+                                    <m_file_name/>
+                                </crea_padre_hija>
+                                
+                            </then>
+                            <else>
+                                
+                                <!-- INSERTO HIJA -->
+                                <crea_hija>
+                                    <m_cabid/>
+                                    <m_fecha/>
+                                    <m_codigo/>
+                                    <m_cant/>
+                                    <m_precio/>
+                                    <m_dtoimp/>
+                                    <m_imptot/>
+                                </crea_hija>
+                                
+                            </else>
+                        </if>
+                    </then>
+                    <else>
+                        
+                        <!-- BORRO LÍNEA DE FICHERO ERROR YA QUE SE INSERTA UN NUEVO ERROR CON OTRO CABID -->
+                        <delete table='alm_fich_err'>
+                           <where>alm_fich_err.cabid = <m_cabid/></where>
+                        </delete>
+                        
+                        <!-- SALTO DE LÍNEA YA QUE NO QUIERO TRATAR ESOS DATOS-->
+                        <foreach.continue/>
+                        
+                    </else>
+                </if>
+
+            </do>
+        </foreach>
+        
+        <foreach>
+            <select prefix='m3_'>
+                <columns>cabid</columns>
+                <from table='@alm_carga_fich'/>
+            </select>
+            <do>
+                <call name='alm_update_imp'>
+                    <m3_cabid/>
+                </call>
+            </do>
+        </foreach>
+
+    </body>
+</xsql-script>

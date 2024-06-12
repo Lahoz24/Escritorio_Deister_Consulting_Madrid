@@ -1,0 +1,147 @@
+<xsql-script name='alm_carga_fich'>
+    <args>
+        <arg name='p_event' type='string'/>
+        <arg name='p_rowid' type='auto'/>
+    </args>
+ 	<body>
+        <!-- ***************************************** AQUÍ EMPIEZA F_ADDLINE ****************************************************************** -->
+        
+         <function name='f_addLine'>
+            <args>
+                <arg name='p_seqno' type='integer'/>
+                <arg name='p_line'  type='string'/>
+                <arg name='p_conta' type='integer' />
+            </args>
+            <body>
+
+                <!-- Todas las líneas de todos los ficheros, tenemos que quitar el string " 0:00:00", -->
+                <!-- y tambien sustituir el caracter "/" por el "-".                                   -->
+                
+
+                <!-- ============================================================== -->
+                <!-- Los campos estaran separados por ";"                           -->
+                <!-- ============================================================== -->
+                <set name='arr'>
+                     <string.split pattern=';'>
+                         <p_line/>
+                     </string.split>
+                </set>
+                 
+                <!-- Validamos el tamaño del fichero -->
+                <if>
+                    <expr><lt><array.size name='arr' />7</lt></expr>
+                    <then>
+                        <exception><string>
+                            Revise el Formato del archivo consumo: Es incorrecto. <string.nl/>
+                            Datos de la línea numero <p_conta/>: size <array.size name='arr' /> <string.nl/>
+                            <p_line/>
+                        </string></exception>
+                        
+                    </then>
+                </if>
+                
+           
+                                
+                <if>
+                    <expr><eq><string.length><array.get name='arr'>4</array.get></string.length>0</eq></expr>
+                    <then>
+                        <set name='m_precio' type='decimal'>0</set>
+                    </then>
+                    <else>
+                        <set name='m_precio' type='decimal'><number.userParse><array.get name='arr'>4</array.get></number.userParse></set>
+                    </else>
+                </if>
+                <if>
+                    <expr><eq><string.length><array.get name='arr'>5</array.get></string.length>0</eq></expr>
+                    <then>
+                        <set name='m_dtoimp' type='decimal'>0</set>
+                    </then>
+                    <else>
+                        <set name='m_dtoimp' type='decimal'><number.userParse><array.get name='arr'>5</array.get></number.userParse></set>
+                    </else>
+                </if>
+                <if>
+                    <expr><eq><string.length><array.get name='arr'>6</array.get></string.length>0</eq></expr>
+                    <then>
+                        <set name='m_imptot' type='decimal'>0</set>
+                    </then>
+                    <else>
+                        <set name='m_imptot' type='decimal'><number.userParse><array.get name='arr'>6</array.get></number.userParse></set>
+                    </else>
+                </if>
+                <if>
+                    <expr><eq><string.length><array.get name='arr'>2</array.get></string.length>0</eq></expr>
+                    <then>
+                        <set name='m_imptot' type='integer'>0</set>
+                    </then>
+                    <else>
+                        <set name='m_imptot' type='integer'><number.userParse><array.get name='arr'>2</array.get></number.userParse></set>
+                    </else>
+                </if>                
+    
+                <!-- Insertamos en la tabla correspondiente los valores leidos de cada línea del fichero -->
+                <insert table='alm_fich_err'>
+                    <column name='ficid'><p_seqno/></column>
+                    <column name='filerr'><string>Prueba</string></column>
+                    <column name='cif'><array.get name='arr'>0</array.get></column>
+                    <column name='codigo'><array.get name='arr'>1</array.get></column>
+                    <column name='cant'><array.get name='arr'>2</array.get></column>
+                    <column name='precio'><m_precio/></column>
+                    <column name='dtoimp'><m_dtoimp/></column>
+                    <column name='imptot'><m_imptot/></column>
+                </insert>
+                
+            </body>
+        </function>
+        
+        <!-- ***************************************** AQUÍ ACABA F_ADDLINE ******************************************************************** -->
+        <!-- Se obtienen los datos  de los ficheros cargados -->
+        <select prefix='m_'>
+            <columns>
+                seqno, file_name <alias name='name' />, file_data <alias name='file'/>, file_type, file_size
+            </columns>
+            <from table='alm_carga_fich'/>
+            <where>
+                rowid=<p_rowid/>
+            </where>
+        </select>   
+        
+        <!-- Compruebo si existe fichero de facturación para la fecha y mes que se ha introducido el de consumo -->
+        <!-- =================================================================== -->
+        <!-- Conversion del fichero byte a string                                -->
+        <!-- =================================================================== -->
+        <set name='lnr'>
+            <string.toArray>
+                <byte.toString encoding='UTF-8'>
+                    <m_file />
+                </byte.toString>
+            </string.toArray>
+        </set>
+        
+        <array.removeFirst name='lnr' />
+        <!-- contador de líneas para mostrar que línea falla cuando de error -->
+        <set name='conta'><number>1</number></set>
+        <!-- Mientras siga habiendo líneas en el fichero, las seguimos tratando -->
+        <while>
+            <expr>
+                <array.size><lnr/></array.size>
+            </expr>
+            <do>
+                <try>
+                    <body>
+                        <set name='m_line'><array.remove name='lnr'>0</array.remove></set>
+                    </body>
+                    <catch>
+                        <exception><string><error.message/> - <m_line/></string></exception>
+                    </catch>
+                </try>
+                <f_addLine>
+                     <m_seqno />
+                     <m_line />
+                     <conta />
+                </f_addLine>
+                <set name='conta'><add><conta/><number>1</number></add></set>
+            </do>
+        </while>
+	</body>
+</xsql-script>

@@ -1,0 +1,174 @@
+<xsql-script name='alm_valida_datos'>
+    <args>
+        <arg name='p_seqno'   type='integer'  />
+        <arg name='p_cif'     type='string'   />
+        <arg name='p_fecha'   type='date'     />
+        <arg name='p_codigo'  type='string'   />
+        <arg name='p_cant'    type='integer'  />
+        <arg name='p_precio'  type='decimal'  />
+        <arg name='p_dtoimp'  type='decimal'  />
+        <arg name='p_imptot'  type='decimal'  />
+    </args>
+ 	<body>
+ 	    
+  	    <!-- Renombro variables que vienen por parámetro para más sencilla inserción a posteriori -->
+  	    
+ 	    <set name='m_ficid'><p_seqno/></set>
+ 	    <set name='m_cif'><p_cif/></set>
+ 	    <set name='m_fecha'><p_fecha/></set>
+ 	    <set name='m_codigo'><p_codigo/></set>
+ 	    <set name='m_cant'><p_cant/></set>
+ 	    <set name='m_precio'><p_precio/></set>
+ 	    
+  	    <!-- Compruebo si me viene un porcentaje -->
+
+ 	    <set name='format_desc'><string.find><p_dtoimp/><string>%</string></string.find></set>
+ 	    <if>
+            <!-- Si format_desc es distinto de -1 quiere decir que lo ha encontrado -->
+            <expr><ne><format_desc/><number>-1</number></ne></expr>
+            <then>
+         	    <set name='m2_format_dtoimp'><string.replace><p_dtoimp/><string>%</string><string/></string.replace></set>
+         	    <set name='m_dtoimp'><number><m2_format_dtoimp/></number></set>
+
+          	    <!-- Si no reconvierto el dato a decimal con el round, la division del porcentaje abajo entre 100 da 0 y no se le aplica descuento al cliente -->
+                <set name='m_dtoimp'><math.round><m_dtoimp/><number>2</number></math.round></set> 
+                <set name='m_dtoimp'><div><m_dtoimp/><number>100</number></div></set>  
+            </then>
+            <else>
+                <set name='m_dtoimp'><p_dtoimp/></set> 
+            </else>
+        </if>
+        
+
+ 	    <set name='m_imptot'><p_imptot/></set>
+
+ 	    <!-- Nombro variable error. Si es 0, inserto datos en tabla en otro script. Si es 1, salto de línea -->
+        
+        <set name='error'><number>1</number></set>
+
+ 	    <!-- ====================================================================================== -->
+        <!--                               COMIENZO VALIDACIONES                                    -->
+ 	    <!-- ====================================================================================== -->
+ 	    
+ 	    
+ 	    <!-- =============================== ¿ CIF existe ? ======================================= -->
+ 	    
+ 	    <select prefix='m2_'>
+ 	        <columns>COUNT (*) <alias name='cont'/></columns>
+ 	        <from table='alm_maestro_clientes'/>
+ 	        <where>alm_maestro_clientes.cif = <m_cif/></where>
+ 	    </select>
+ 	    
+        <if>
+            <expr><eq><m2_cont/><number>0</number></eq></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>El cif insertado no existe</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+        
+ 	    <!-- =========================== ¿ Código artículo existe ? =============================== -->
+ 	    
+ 	    <select prefix='m2_'>
+ 	        <columns>COUNT (*) <alias name='cont'/></columns>
+ 	        <from table='alm_maestro_articulos'/>
+ 	        <where>alm_maestro_articulos.codigo = <m_codigo/></where>
+ 	    </select>
+ 	    
+        <if>
+            <expr><eq><m2_cont/><number>0</number></eq></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>El codigo insertado no pertenece a ningún artículo</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+        
+ 	    <!-- =============================== ¿ Cantidad es 0 ? ==================================== -->
+ 	    
+        <if>
+            <expr><le><m_cant/><number>0</number></le></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>La cantidad insertada no puede ser 0 o menor que 0</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+        
+ 	    <!-- ================================ ¿ Precio es 0 ? ===================================== -->
+ 	    
+        <if>
+            <expr><le><m_precio/><number>0</number></le></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>El precio insertado no puede ser 0 o menor que 0</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+        
+ 	    <!-- ================================ ¿ Descuento es 0 ? ===================================== -->
+ 	    
+        <if>
+            <expr><lt><m_dtoimp/><number>0</number></lt></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>El descuento insertado no puede ser menor de 0</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+        
+
+ 	    <!-- ========================== ¿ Calculo del imptot mal hecho ? ========================== -->
+ 	    
+ 	    <set name='m2_import_calc'><mul><m_precio/><m_cant/></mul></set>
+ 	    <set name='m2_imptot_calc'>
+        <sub>
+            <m2_import_calc/>
+            <mul>
+                <m2_import_calc/>
+                <m_dtoimp/>
+            </mul>  
+        </sub>
+
+ 	    </set>
+ 	    
+        <if>
+            <expr><ne><m_imptot/><m2_imptot_calc/></ne></expr>
+            <then>
+                
+                <!-- Inserto en tabla errores con mensaje previamente definido -->
+                
+                <set name='m_filerr'><string>El importe total insertado no está bien calculado</string></set>
+                <insert table='alm_fich_err' prefix='m_'/>
+                <return><error/></return>
+            </then>
+        </if>
+
+ 	    <!-- ====================================================================================== -->
+        <!--                                  FIN VALIDACIONES                                      -->
+ 	    <!-- ====================================================================================== -->
+ 	    
+
+ 	    <!-- ========================== ¿ Todo está validado y correcto ? ========================= -->
+
+        <set name='error'><number>0</number></set>
+        <return><error/></return>
+             
+	</body>
+</xsql-script>

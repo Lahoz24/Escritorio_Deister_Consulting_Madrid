@@ -214,11 +214,11 @@
                 <arg name='p_file_name'/>
             </args>
             <body>
+                
                 <select prefix='alm_'>
-                    <columns>COUNT(*) <alias name='cont2'/>,alm_maestro_clientes.codigo <alias name='alpargatash_codcli'/></columns>
+                    <columns>alm_maestro_clientes.codigo <alias name='alpargatash_codcli'/></columns>
                     <from table='alm_maestro_clientes'/>
                     <where>alm_maestro_clientes.cif=<p_cif/></where>
-                    <group>2</group>
                 </select>
                 
                 <set name='alm_alpargatash_codigo'><string><alm_alpargatash_codcli/> <p_seqno/></string></set>
@@ -230,61 +230,33 @@
         
                 <set name='alm_alpargatash_fecini'><p_fecha/></set>
                 <set name='alm_alpargatash_fecfin'><p_fecha/></set>
-        
-                <if>
-                    <expr>
-                        <or>
-                            <eq><alm_cont2/><null/></eq>
-                            <eq><alm_cont2/><number>0</number></eq>
-                        </or>
-                    </expr>
+    
+                        
+                <!-- Inserto en alpargatash -->
+                <insert table='alm_alpargatash' prefix='alm_alpargatash_'/>
                 
-                    <then>
-                        
-                        <!-- Inserto en fichero error diciendo que no existe el cliente con ese cif, este control se haría en script trat_tip_dat + valida_datos-->
-                        
-                        <set name='alm_fich_err_ficid'><p_seqno/></set>
-                        <set name='alm_fich_err_ficherr'><string>No existe cliente dado de alta con este cif</string></set>
-                        <set name='alm_fich_err_cif'><p_cif/></set>
-                        <set name='alm_fich_err_fecha'><p_fecha/></set>
-                        <set name='alm_fich_err_codigo'><p_codigo/></set>
-                        <set name='alm_fich_err_cant'><p_cant/></set>
-                        <set name='alm_fich_err_precio'><p_precio/></set>
-                        <set name='alm_fich_err_dtoimp'><p_dtoimp/></set>
-                        <set name='alm_fich_err_imptot'><p_imptot/></set>
-                        
-                        <insert table='alm_fich_err' prefix='alm_fich_err_'/>
-            
-                    </then>
-                    <else>
-                        
-                        <!-- Inserto en alpargatash -->
-                        <insert table='alm_alpargatash' prefix='alm_alpargatash_'/>
-                        
-                        <!-- Obtengo el cabid último insertado -->
-                        <set name='m2_cabid'>
-                            <sqlca.serial/>
-                        </set>
-            
-                        <!-- Guardo el cif y cabid en la tabla temporal -->
-                        <insert table='@alm_carga_fich'>
-                            <column name='cif'><p_cif/></column>
-                            <column name='cabid'><m2_cabid/></column>
-                        </insert>
-                        
-                        <!-- FUNCIÓN HIJA EMPIEZA -->
-                        <crea_hija>
-                            <m2_cabid/>
-                            <p_fecha/>
-                            <p_codigo/>
-                            <p_cant/>
-                            <p_precio/>
-                            <p_dtoimp/>
-                            <p_imptot/>
-                        </crea_hija>
+                <!-- Obtengo el cabid último insertado -->
+                <set name='m2_cabid'>
+                    <sqlca.serial/>
+                </set>
+    
+                <!-- Guardo el cif y cabid en la tabla temporal -->
+                <insert table='@alm_carga_fich'>
+                    <column name='cif'><p_cif/></column>
+                    <column name='cabid'><m2_cabid/></column>
+                </insert>
                 
-                    </else>
-                </if>
+                <!-- FUNCIÓN HIJA EMPIEZA -->
+                <crea_hija>
+                    <m2_cabid/>
+                    <p_fecha/>
+                    <p_codigo/>
+                    <p_cant/>
+                    <p_precio/>
+                    <p_dtoimp/>
+                    <p_imptot/>
+                </crea_hija>
+                
             </body>
         </function>                
             
@@ -486,7 +458,7 @@
                         </set>
                     </body>
                     <catch>
-                        <exception><string>Fila: [<f/>] Hoja: [<i/>] . Max filas [<m_maxrow/>]  <error.message/></string></exception>
+                        <exception><string>Fila: [<f/>] Hoja: [<i/>] . Max filas [<m_maxrow/>]  El formato del fichero es incorrecto</string></exception>
                     </catch>
                 </try>
                 <!-- Como las 3 primeras columnas de la tabla alm_fich_err son un cabid,el id del fichero y mensaje de error de la fila, comenzamos en la 4 a obtener los datos de la v_maptabla-->
@@ -549,7 +521,7 @@
                             </body>
                             <catch>
                                 <set name='fila'><add><f/><number>1</number></add></set>
-                                <exception><string>Hoja <i/>;  Col <col/>; Fila <fila/>; <error.message/></string></exception>
+                                <exception><string>Hoja <i/>;  Col <col/>; Fila <fila/>; El formato del fichero es incorrecto</string></exception>
                             </catch>
                             
                         </try>
@@ -569,18 +541,43 @@
                         <set name='m_col'><add><m_col/><number>1</number></add></set>
                     </do>
                 </for>
-                <!-- Una vez obtenidos los valores de la fila, insertamos en la tabla correspondiente-->
-                <master_datos>
-                    <col_cif/>
-                    <col_fecha/>
-                    <col_codigo/>
-                    <col_cant/>
-                    <col_precio/>
-                    <col_dtoimp/>
-                    <col_imptot/>
-                    <m_seqno/>
-                    <m_file_name/>
-                </master_datos>
+                        
+                <!-- Una vez obtenidos los valores de la fila, validamos los datos -->
+
+                <set name='m_error'>
+                    <call name='alm_valida_datos'>
+                        <m_seqno/>
+                        <col_cif/>
+                        <col_fecha/>
+                        <col_codigo/>
+                        <math.round><col_cant/><number>0</number></math.round>
+                        <col_precio/>
+                        <col_dtoimp/>
+                        <col_imptot/>
+                    </call>
+                </set>
+                
+                <!-- ¿ No existe error a la hora de validar ? -->
+                
+                <if>
+                    <expr><eq><m_error/><number>0</number></eq></expr>
+                    <then>
+                        
+                        <!-- Insertamos en la tabla correspondiente -->
+                        <master_datos>
+                            <col_cif/>
+                            <col_fecha/>
+                            <col_codigo/>
+                            <col_cant/>
+                            <col_precio/>
+                            <col_dtoimp/>
+                            <col_imptot/>
+                            <m_seqno/>
+                            <m_file_name/>
+                        </master_datos>
+                    </then>
+                </if>
+
             </do>
         </for>
 
