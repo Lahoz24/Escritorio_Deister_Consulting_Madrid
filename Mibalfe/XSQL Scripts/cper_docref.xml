@@ -1,0 +1,175 @@
+<xsql-script name='cper_docref'>
+    <args>
+        <arg name='p_event'/>
+        <arg name='p_rowid'/>
+    </args>
+    <body>
+        
+        <!-- Se inicializa la variable tabla destino para su posterior update en cper_docref -->
+        
+        <set name="m_tabdes"><null/></set>
+      
+ 	    <!-- ====================================================================================== -->
+        <!--                                   EVENTO DELETE                                        -->
+ 	    <!-- ====================================================================================== -->
+ 	    
+        <if>
+            <expr><eq><p_event/><string>D</string></eq></expr>
+            <then>
+                <return/>
+            </then>
+        </if>
+
+ 	    <!-- ====================================================================================== -->
+        <!--                                   EVENTO INSERT                                        -->
+ 	    <!-- ====================================================================================== -->
+ 	    
+        <if>
+            <expr><eq><p_event/><string>I</string></eq></expr>
+            <then>
+                
+                <!-- Recopilación de datos del documento recién insertado -->
+                
+                <select prefix='m_'>
+                    <columns>
+                        tipodocu, catdoc, codemp, codcomp, fordoc, facid, file_data, file_name, file_type, file_size
+                    </columns>
+                    <from table='cper_docref'/>
+                    <where>
+                        cper_docref.rowid = <p_rowid/>
+                    </where>
+                </select>
+                
+                <!-- ¿Es una factura? -->
+                
+                <if>
+                    <expr>
+                        <and>
+                            <eq><m_tipodocu/><string>FA</string></eq>
+                            <eq><m_catdoc/><string>L</string></eq>
+                        </and>
+                    </expr>
+                    <then>
+                        
+                        <!-- Inserción en los documentos de las facturas -->
+                        
+                        <insert table='gcomfach_docs'>
+                            <column name='tipdoc'><m_tipodocu/></column>
+                            <column name='file_name'><m_file_name/></column>
+                            <column name='file_date'><date.today/></column>
+                            <column name='file_type'><m_file_type/></column>
+                            <column name='file_size'><m_file_size/></column>
+                            <column name='file_data'><m_file_data/></column>
+                        </insert>
+                        
+                        <!-- Nombre de la tabla destino cambiado -->
+                        
+                        <set name="m_tabdes"><string>gcomfach_docs</string></set>
+                        
+                    </then>
+                    
+                    <!-- ¿Es de tipo laboral/trabajo? -->
+
+                    <else-if>
+                        <expr><eq><m_catdoc/><string>L</string></eq></expr>
+                        <then>
+                            
+                            <!-- Inserción en los documentos laborales/trabajo  -->
+                            <!-- ************ AÚN NO IMPLEMENTADO ************* -->
+
+                            <insert table='cper_empldocu'>
+                                <column name='codper'><m_codemp/></column>
+                                <column name='file_doctype'><m_tipodocu/></column>
+                                <column name='file_presen'><date.today/></column>
+                                <column name='file_date'><date.today/></column>
+                                <column name='file_name'><m_file_name/></column>
+                                <column name='file_data'><m_file_data/></column>
+                                <column name='file_type'><m_file_type/></column>
+                                <column name='file_size'><m_file_size/></column>
+                            </insert>
+                            
+                            <!-- Nombre de la tabla destino cambiado -->
+                            
+                            <set name="m_tabdes"><string>cper_empldocu</string></set>
+                            
+                        </then>
+                    </else-if>
+                    
+                    <!-- ¿Es de tipo personal? -->
+                    
+                    <else-if>
+                        <expr><eq><m_catdoc/><string>P</string></eq></expr>
+                        <then>
+                            
+                            <!-- Inserción en los documentos personales  -->
+                            <!-- ********* AÚN NO IMPLEMENTADO ********* -->
+                            
+                            <insert table='cper_empldocu'>
+                                <column name='codper'><m_codemp/></column>
+                                <column name='file_doctype'><m_tipodocu/></column>
+                                <column name='file_presen'><date.today/></column>
+                                <column name='file_date'><date.today/></column>
+                                <column name='file_name'><m_file_name/></column>
+                                <column name='file_data'><m_file_data/></column>
+                                <column name='file_type'><m_file_type/></column>
+                                <column name='file_size'><m_file_size/></column>
+                            </insert>
+                            
+                            <!-- Nombre de la tabla destino cambiado -->
+                            
+                            <set name="m_tabdes"><string>cper_empldocu</string></set>
+                            
+                        </then>
+                    </else-if>
+                    
+                    <!-- ¿Es de tipo competencia/formación? -->
+                    <else-if>
+                        
+                        <expr><eq><m_catdoc/><string>C</string></eq></expr>
+                        <then>
+                            <!-- Inserción en los documentos de competencias/formación  -->
+                            <!-- **************** AÚN NO IMPLEMENTADO ***************** -->
+                            
+                            <insert table='cper_empldocu'>
+                                <column name='codper'><m_codemp/></column>
+                                <column name='file_doctype'><m_tipodocu/></column>
+                                <column name='file_presen'><date.today/></column>
+                                <column name='file_date'><date.today/></column>
+                                <column name='file_name'><m_file_name/></column>
+                                <column name='file_data'><m_file_data/></column>
+                                <column name='file_type'><m_file_type/></column>
+                                <column name='file_size'><m_file_size/></column>
+                            </insert>
+                            
+                            <!-- Nombre de la tabla destino cambiado -->
+                            
+                            <set name="m_tabdes"><string>cper_empldocu</string></set>
+                            
+                        </then>
+                    </else-if>
+                    
+                    <!-- ¿No pertenece a ninguna de esas categorías? = Mensaje de error -->
+                    
+                    <else>
+                        <exception><string>Rellena bien los campos</string></exception>
+                    </else>
+                    
+                </if>
+                
+                <!-- Recoge el último serial donde hayamos insertado -->
+                <set name="m_iddes"><sqlca.serial/></set>
+                
+                <!-- Update de ese id destino y esa tabla destino en documentos referenciales para tener la traza guardada -->
+                <update table='cper_docref'>
+                    <column name='iddes'><m_iddes/></column>
+                    <column name='tabdes'><m_tabdes/></column>
+                    <where>
+                        cper_docref.rowid = <p_rowid/>
+                    </where>
+                </update>
+                
+            </then>
+        </if>
+        
+    </body>
+</xsql-script>
